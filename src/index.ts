@@ -4,24 +4,50 @@ export default {
     env: Env,
     _ctx: ExecutionContext
   ): Promise<Response> {
+    const cacheHeaders = {
+      "Cache-Control": "no-cache",
+    };
+
     const { pathname } = new URL(request.url);
 
     switch (pathname) {
-      case "/current": {
-        const latest =
-          (
-            await Promise.all([
-              env.map_versions.get(getTodayDate()),
-              env.map_versions.get(getYesterdayDate()),
-            ])
-          ).find((v) => v) || null;
+      case "/":
+      case "/v1":
+        return new Response(
+          `<!doctype html>
+<meta charset="utf-8">
+<title>TomTom Map Version</title>
+<h1>TomTom Map Version</h1>
+<a href="/v1/current">Current map version</a>`,
+          {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "no-cache",
+            },
+          }
+        );
+      case "/v1/current": {
+        const todaysVersionPromise = env.map_versions.get(getTodayDate());
+        const yesterdaysVersionPromise = env.map_versions.get(
+          getYesterdayDate()
+        );
 
-        return Response.json({
-          current_map_version: latest,
-        });
+        return Response.json(
+          {
+            current_map_version:
+              (await todaysVersionPromise) || (await yesterdaysVersionPromise),
+          },
+          { headers: { "Cache-Control": "no-cache" } }
+        );
       }
       default:
-        return Response.json({ error: "Not found" }, { status: 404 });
+        return Response.json(
+          { error: "Not found" },
+          {
+            status: 404,
+            headers: cacheHeaders,
+          }
+        );
     }
   },
 
