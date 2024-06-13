@@ -4,14 +4,18 @@ export default {
     env: Env,
     _ctx: ExecutionContext
   ): Promise<Response> {
-    const cacheHeaders = {
-      "Cache-Control": "no-cache",
-    };
-
     const { pathname } = new URL(request.url);
 
     switch (pathname) {
       case "/":
+        return new Response(null, {
+          status: 301,
+          headers: {
+            Location: "/v1",
+            "Cache-Control": "no-cache",
+          },
+        });
+
       case "/v1":
         return new Response(
           `<!doctype html>
@@ -26,6 +30,16 @@ export default {
             },
           }
         );
+
+      case "/current":
+        return new Response(null, {
+          status: 301,
+          headers: {
+            Location: "/v1/current",
+            "Cache-Control": "no-cache",
+          },
+        });
+
       case "/v1/current": {
         const todaysVersionPromise = env.map_versions.get(getTodayDate());
         const yesterdaysVersionPromise = env.map_versions.get(
@@ -40,12 +54,13 @@ export default {
           { headers: { "Cache-Control": "no-cache" } }
         );
       }
+
       default:
         return Response.json(
           { error: "Not found" },
           {
             status: 404,
-            headers: cacheHeaders,
+            headers: { "Cache-Control": "no-cache" },
           }
         );
     }
