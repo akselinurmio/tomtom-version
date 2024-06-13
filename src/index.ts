@@ -180,12 +180,12 @@ async function reportError(message: unknown, env: Env): Promise<void> {
   await sendEmail("Error in TomTom map version check", String(message), env);
 }
 
-function getYesterdayDate(now = new Date()) {
-  const yesterday = new Date(now);
-  yesterday.setUTCDate(now.getUTCDate() - 1);
+function getYesterdayDate() {
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   return yesterday.toISOString().substring(0, 10);
 }
 
-function getTodayDate(now = new Date()) {
-  return now.toISOString().substring(0, 10);
+function getTodayDate() {
+  return new Date().toISOString().substring(0, 10);
 }
