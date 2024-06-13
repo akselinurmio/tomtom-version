@@ -58,7 +58,11 @@ export default {
   ): Promise<void> {
     let previousVersion: string | null = null;
     try {
-      previousVersion = await env.map_versions.get(getYesterdayDate());
+      const todaysVersionPromise = env.map_versions.get(getTodayDate());
+      const yesterdaysVersionPromise = env.map_versions.get(getYesterdayDate());
+
+      previousVersion =
+        (await todaysVersionPromise) || (await yesterdaysVersionPromise);
     } catch (e) {
       console.error("Error occurred while checking previous map version.", e);
     }
@@ -92,7 +96,7 @@ export default {
       );
     } else if (previousVersion === latestVersion) {
       console.log(
-        `Latest map version is the same as yesterday (${latestVersion})`
+        `Latest map version is the same as in previous check (${latestVersion})`
       );
     } else {
       const message = `Map version changed from ${previousVersion} to ${latestVersion}`;
@@ -116,9 +120,9 @@ async function fetchMapVersion(env: Env): Promise<string> {
   let body = await res.text();
 
   // Remove HTML tags from body
-  body = body.replaceAll(/<[^>]+>/g, " ");
+  body = body.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s{2,}/g, " ");
 
-  const versionMatch = body.match(/latest\s+map\s+version\s+is\s*(\d{4})/i);
+  const versionMatch = body.match(/latest map version is (\d{4})/i);
 
   if (!versionMatch) {
     throw new Error("Failed to find latest map version in page");
