@@ -15,4 +15,7 @@ WEB_PAGE_URL = "https://help.tomtom.com/hc/en-gb/articles/360013959519-Latest-ma
 [[kv_namespaces]]
 binding = "map_versions"
 id = "d84dad3b933448af81e9861948da8086"
-preview_id = "4e22bed0c446487f9801453e6e191020"
+
+[[kv_namespaces]]
+binding = "map_version_changes"
+id = "7c192d8cdc3b48b088b0407caaad4fda"
