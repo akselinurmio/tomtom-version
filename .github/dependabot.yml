@@ -8,3 +8,9 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    groups:
+      cloudflare:
+        applies-to: version-updates
+        patterns:
+          - "@cloudflare/*"
+          - "wrangler"
