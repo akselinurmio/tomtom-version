@@ -30,8 +30,8 @@ export default {
 <meta name="viewport" content="width=device-width">
 <title>What is the latest TomTom map version?</title>
 <h1>Latest TomTom map version is ${version ?? "currently unknown"}</h1>
-${lastChange ? `<p>Version ${lastChange.to_version} was released between <time>${getDateOneDayBefore(lastChangeDate!)}T12:00Z</time> and <time>${lastChangeDate}T12:00Z</time>.` : ""}
 ${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
+${lastChange ? `<p>Version ${lastChange.to_version} was released between <time>${getDateOneDayBefore(lastChangeDate!)}T12:00Z</time> and <time>${lastChangeDate}T12:00Z</time>. Previous map version was ${lastChange.from_version}.` : ""}
 <nav>
 <p><a href="/v1">JSON API</a></p>
 </nav>
@@ -80,7 +80,9 @@ ${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
       }
 
       case "/v1/history": {
-        const changes = await env.map_version_changes.list<VersionChange>();
+        const changes = await env.map_version_changes.list<VersionChange>({
+          prefix: "2",
+        });
 
         return Response.json(
           {
