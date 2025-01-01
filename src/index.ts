@@ -16,6 +16,13 @@ export default {
       case "/": {
         const { date, version } = (await getLatestVersion(env)) || {};
 
+        const lastChangeDate = await env.map_version_changes.get("last_change");
+        const lastChange = lastChangeDate
+          ? await env.map_version_changes.get<VersionChange>(lastChangeDate, {
+              type: "json",
+            })
+          : null;
+
         return new Response(
           `<!doctype html>
 <html lang="en">
@@ -23,9 +30,10 @@ export default {
 <meta name="viewport" content="width=device-width">
 <title>What is the latest TomTom map version?</title>
 <h1>Latest TomTom map version is ${version ?? "currently unknown"}</h1>
+${lastChange ? `<p>Version ${lastChange.to_version} was released between <time>${getDateOneDayBefore(lastChangeDate!)}T12:00Z</time> and <time>${lastChangeDate}T12:00Z</time>.` : ""}
 ${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
 <nav>
-<p><a href="/v1/current">JSON API</a></p>
+<p><a href="/v1">JSON API</a></p>
 </nav>
 </html>`,
           {
@@ -106,7 +114,7 @@ ${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
     try {
       previousVersion =
         (await env.map_versions.get(getTodayDate())) ||
-        (await env.map_versions.get(getYesterdayDate()));
+        (await env.map_versions.get(getDateOneDayBefore()));
     } catch (e) {
       console.error("Error occurred while checking previous map version.", e);
     }
@@ -148,17 +156,18 @@ ${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
 
       console.log(message);
 
+      const key = getTodayDate();
       const change: VersionChange = {
         created_at: Date.now(),
         from_version: previousVersion,
         to_version: latestVersion,
       };
 
-      await env.map_version_changes.put(
-        getTodayDate(),
-        JSON.stringify(change),
-        { metadata: change },
-      );
+      await env.map_version_changes.put(key, JSON.stringify(change), {
+        metadata: change,
+      });
+
+      await env.map_version_changes.put("last_change", key);
 
       await sendEmail("New TomTom map version available", message, env);
     }
@@ -197,7 +206,7 @@ async function getLatestVersion(env: Env) {
     if (version) return { date: today, version };
   }
 
-  const yesterday = getYesterdayDate();
+  const yesterday = getDateOneDayBefore();
   const version = await env.map_versions.get(yesterday);
   if (version) return { date: yesterday, version };
 }
@@ -236,10 +245,10 @@ async function reportError(message: unknown, env: Env): Promise<void> {
   await sendEmail("Error in TomTom map version check", String(message), env);
 }
 
-function getYesterdayDate() {
-  const yesterday = new Date();
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  return yesterday.toISOString().substring(0, 10);
+function getDateOneDayBefore(date?: string) {
+  const dateObj = new Date(date || Date.now());
+  dateObj.setUTCDate(dateObj.getUTCDate() - 1);
+  return dateObj.toISOString().substring(0, 10);
 }
 
 function getTodayDate() {
