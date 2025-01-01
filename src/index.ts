@@ -13,25 +13,43 @@ export default {
     const { pathname } = new URL(request.url);
 
     switch (pathname) {
-      case "/":
-        return new Response(null, {
-          status: 301,
-          headers: {
-            Location: "/v1",
-            "Cache-Control": "no-cache",
+      case "/": {
+        const { date, version } = (await getLatestVersion(env)) || {};
+
+        return new Response(
+          `<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>What is the latest TomTom map version?</title>
+<h1>Latest TomTom map version is ${version ?? "currently unknown"}</h1>
+${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
+<nav>
+<p><a href="/v1/current">JSON API</a></p>
+</nav>
+</html>`,
+          {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "no-cache",
+            },
           },
-        });
+        );
+      }
 
       case "/v1":
         return new Response(
           `<!doctype html>
+<html lang="en">
 <meta charset="utf-8">
-<title>TomTom Map Version</title>
-<h1>TomTom Map Version</h1>
+<meta name="viewport" content="width=device-width">
+<title>TomTom Map Version API</title>
+<h1>TomTom Map Version API</h1>
 <ul>
 <li><a href="/v1/current">Current map version</a></li>
 <li><a href="/v1/history">Version history</a></li>
-</ul>`,
+</ul>
+</html>`,
           {
             headers: {
               "Content-Type": "text/html; charset=utf-8",
@@ -40,31 +58,9 @@ export default {
           },
         );
 
-      case "/current":
-        return new Response(null, {
-          status: 301,
-          headers: {
-            Location: "/v1/current",
-            "Cache-Control": "no-cache",
-          },
-        });
-
       case "/v1/current": {
         const versionWithDate: { date: string; version: string } | undefined =
-          await (async () => {
-            const shouldTodaysVersionBeChecked = new Date().getUTCHours() >= 12;
-
-            if (shouldTodaysVersionBeChecked) {
-              const today = getTodayDate();
-              const todaysVersion = await env.map_versions.get(today);
-              if (todaysVersion) return { date: today, version: todaysVersion };
-            }
-
-            const yesterday = getYesterdayDate();
-            const yesterdaysVersion = await env.map_versions.get(yesterday);
-            if (yesterdaysVersion)
-              return { date: yesterday, version: yesterdaysVersion };
-          })();
+          await getLatestVersion(env);
 
         return Response.json(
           {
@@ -190,6 +186,20 @@ async function fetchMapVersion(env: Env): Promise<string> {
   }
 
   return versionMatch[1];
+}
+
+async function getLatestVersion(env: Env) {
+  const shouldTodayVersionBeChecked = new Date().getUTCHours() >= 12;
+
+  if (shouldTodayVersionBeChecked) {
+    const today = getTodayDate();
+    const version = await env.map_versions.get(today);
+    if (version) return { date: today, version };
+  }
+
+  const yesterday = getYesterdayDate();
+  const version = await env.map_versions.get(yesterday);
+  if (version) return { date: yesterday, version };
 }
 
 async function sendEmail(
