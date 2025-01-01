@@ -57,6 +57,9 @@ ${lastChange ? `<p>Version ${lastChange.to_version} was released between <time>$
 <li><a href="/v1/current">Current map version</a></li>
 <li><a href="/v1/history">Version history</a></li>
 </ul>
+<nav>
+<p><a href="/">Front page</a></p>
+</nav>
 </html>`,
           {
             headers: {
