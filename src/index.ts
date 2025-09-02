@@ -221,18 +221,18 @@ async function sendEmail(
   message: string,
   env: Env,
 ): Promise<void> {
-  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
+  const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Accept: "application/json",
-      Authorization: `Bearer ${env.SENDGRID_API_KEY}`,
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: { email: "noreply@akselinurmio.fi" },
+      from: "TomTom Map version checker <noreply@akselinurmio.fi>",
+      to: env.NOTIFY_EMAIL,
       subject: subject,
-      personalizations: [{ to: [{ email: env.NOTIFY_EMAIL }] }],
-      content: [{ type: "text/plain", value: message }],
+      text: message,
     }),
   });
 
