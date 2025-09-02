@@ -1,0 +1,24 @@
+{
+  "compatibility_date": "2024-06-09",
+  "main": "src/index.ts",
+  "name": "tomtom-version",
+  "kv_namespaces": [
+    {
+      "binding": "map_versions",
+      "id": "d84dad3b933448af81e9861948da8086"
+    },
+    {
+      "binding": "map_version_changes",
+      "id": "7c192d8cdc3b48b088b0407caaad4fda"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["0 12 * * *"]
+  },
+  "vars": {
+    "WEB_PAGE_URL": "https://help.tomtom.com/hc/en-gb/articles/360013959519-Latest-maps-for-navigation-devices"
+  }
+}
