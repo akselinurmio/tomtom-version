@@ -4,11 +4,11 @@
   "name": "tomtom-version",
   "kv_namespaces": [
     {
-      "binding": "map_versions",
+      "binding": "MAP_VERSIONS",
       "id": "d84dad3b933448af81e9861948da8086"
     },
     {
-      "binding": "map_version_changes",
+      "binding": "MAP_VERSION_CHANGES",
       "id": "7c192d8cdc3b48b088b0407caaad4fda"
     }
   ],
