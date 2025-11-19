@@ -50,7 +50,7 @@ ${
         const relativeTime = formatRelativeTime(dateAfter);
         const formattedBefore = formatDateTime(dateBefore);
         const formattedAfter = formatDateTime(dateAfter);
-        return `<p>Version ${lastChange.to_version} was released ${relativeTime} ago, between <time datetime="${dateBefore}" title="${formattedBefore}">${formattedBefore}</time> and <time datetime="${dateAfter}" title="${formattedAfter}">${formattedAfter}</time>. Previous map version was ${lastChange.from_version}.</p>`;
+        return `<p>Version ${lastChange.to_version} was released ${relativeTime} ago, between <time datetime="${dateBefore}">${formattedBefore}</time> and <time datetime="${dateAfter}">${formattedAfter}</time>. Previous map version was ${lastChange.from_version}.</p>`;
       })()
     : ""
 }
