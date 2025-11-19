@@ -1,3 +1,6 @@
+import { formatRelativeTime } from "./relative-time.js";
+import { formatDateTime } from "./format-datetime.js";
+
 type VersionChange = {
   created_at: number;
   from_version: string;
@@ -23,6 +26,14 @@ export default {
             })
           : null;
 
+        let lastCheckedTime = "";
+        if (date) {
+          const dateTimeString = `${date}T12:00Z`;
+          const formatted = formatRelativeTime(dateTimeString);
+          const title = formatDateTime(dateTimeString);
+          lastCheckedTime = `<p>Last checked <time datetime="${dateTimeString}" title="${title}">${formatted} ago</time>.</p>`;
+        }
+
         return new Response(
           `<!doctype html>
 <html lang="en">
@@ -30,8 +41,19 @@ export default {
 <meta name="viewport" content="width=device-width">
 <title>What is the latest TomTom map version?</title>
 <h1>Latest TomTom map version is ${version ?? "currently unknown"}</h1>
-${date ? `<p>Last checked at <time>${date}T12:00Z</time>.</p>` : ""}
-${lastChange && lastChangeDate ? `<p>Version ${lastChange.to_version} was released between <time>${getDateOneDayBefore(lastChangeDate)}T12:00Z</time> and <time>${lastChangeDate}T12:00Z</time>. Previous map version was ${lastChange.from_version}.` : ""}
+${lastCheckedTime}
+${
+  lastChange && lastChangeDate
+    ? (() => {
+        const dateBefore = `${getDateOneDayBefore(lastChangeDate)}T12:00Z`;
+        const dateAfter = `${lastChangeDate}T12:00Z`;
+        const relativeTime = formatRelativeTime(dateAfter);
+        const formattedBefore = formatDateTime(dateBefore);
+        const formattedAfter = formatDateTime(dateAfter);
+        return `<p>Version ${lastChange.to_version} was released ${relativeTime} ago, between <time datetime="${dateBefore}" title="${formattedBefore}">${formattedBefore}</time> and <time datetime="${dateAfter}" title="${formattedAfter}">${formattedAfter}</time>. Previous map version was ${lastChange.from_version}.</p>`;
+      })()
+    : ""
+}
 <nav>
 <p><a href="/v1">JSON API</a></p>
 </nav>

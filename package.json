@@ -6,10 +6,14 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev --test-scheduled",
     "start": "wrangler dev --test-scheduled",
+    "setup-mock-kv": "./setup-mock-kv.sh",
     "cf-typegen": "wrangler types",
     "prettier": "prettier --write .",
     "prettier:check": "prettier --check .",
     "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "0.5.1"
   },
   "devDependencies": {
     "prettier": "3.6.2",
