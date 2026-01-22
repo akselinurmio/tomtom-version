@@ -14,7 +14,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@js-temporal/polyfill": "0.5.1"
+    "@js-temporal/polyfill": "0.5.1",
+    "hono": "4.11.5"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.12.6",

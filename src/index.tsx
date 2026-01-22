@@ -1,3 +1,5 @@
+import { Hono } from "hono";
+import type { FC } from "hono/jsx";
 import { Temporal } from "@js-temporal/polyfill";
 import { formatRelativeTime } from "./relative-time.js";
 import { formatDateTime } from "./format-datetime.js";
@@ -8,131 +10,143 @@ type VersionChange = {
   to_version: string;
 };
 
+const app = new Hono<{ Bindings: Env }>({
+  strict: true,
+});
+
+const Layout: FC<{ title: string; children?: unknown }> = ({
+  title,
+  children,
+}) => {
+  return (
+    <html lang="en">
+      <meta charSet="utf-8" />
+      <meta name="viewport" content="width=device-width" />
+      <title>{title}</title>
+      {children}
+    </html>
+  );
+};
+
+const HomePage: FC<{
+  version?: string;
+  lastCheckedDate?: string;
+  lastChange?: VersionChange;
+  lastChangeDate?: string;
+}> = ({ version, lastCheckedDate, lastChange, lastChangeDate }) => {
+  return (
+    <Layout title="What is the latest TomTom map version?">
+      <h1>Latest TomTom map version is {version ?? "currently unknown"}</h1>
+      {lastCheckedDate && (
+        <p>
+          Last checked{" "}
+          <time
+            datetime={`${lastCheckedDate}T12:00Z`}
+            title={formatDateTime(`${lastCheckedDate}T12:00Z`)}
+          >
+            {formatRelativeTime(`${lastCheckedDate}T12:00Z`)} ago
+          </time>
+          .
+        </p>
+      )}
+      {lastChange && lastChangeDate && (
+        <p>
+          Version {lastChange.to_version} was released{" "}
+          {formatRelativeTime(`${lastChangeDate}T12:00Z`)} ago, between{" "}
+          <time datetime={`${getDateOneDayBefore(lastChangeDate)}T12:00Z`}>
+            {formatDateTime(`${getDateOneDayBefore(lastChangeDate)}T12:00Z`)}
+          </time>{" "}
+          and{" "}
+          <time datetime={`${lastChangeDate}T12:00Z`}>
+            {formatDateTime(`${lastChangeDate}T12:00Z`)}
+          </time>
+          . Previous map version was {lastChange.from_version}.
+        </p>
+      )}
+      <nav>
+        <p>
+          <a href="/v1">JSON API</a>
+        </p>
+      </nav>
+    </Layout>
+  );
+};
+
+const ApiPage: FC = () => {
+  return (
+    <Layout title="TomTom Map Version API">
+      <h1>TomTom Map Version API</h1>
+      <ul>
+        <li>
+          <a href="/v1/current">Current map version</a>
+        </li>
+        <li>
+          <a href="/v1/history">Version history</a>
+        </li>
+      </ul>
+      <nav>
+        <p>
+          <a href="/">Front page</a>
+        </p>
+      </nav>
+    </Layout>
+  );
+};
+
+app.get("/", async (c) => {
+  const { date, version } = (await getLatestVersion(c.env)) || {};
+
+  const lastChangeDate = await c.env.MAP_VERSION_CHANGES.get("last_change");
+  const lastChange = lastChangeDate
+    ? await c.env.MAP_VERSION_CHANGES.get<VersionChange>(lastChangeDate, {
+        type: "json",
+      })
+    : null;
+
+  return c.html(
+    <HomePage
+      version={version}
+      lastCheckedDate={date}
+      lastChange={lastChange || undefined}
+      lastChangeDate={lastChangeDate || undefined}
+    />,
+  );
+});
+
+app.get("/v1", (c) => {
+  return c.html(<ApiPage />);
+});
+
+app.get("/v1/current", async (c) => {
+  const versionWithDate: { date: string; version: string } | undefined =
+    await getLatestVersion(c.env);
+
+  return c.json({
+    current_map_version: versionWithDate?.version ?? null,
+    last_checked: versionWithDate?.date ?? null,
+  });
+});
+
+app.get("/v1/history", async (c) => {
+  const changes = await c.env.MAP_VERSION_CHANGES.list<VersionChange>({
+    prefix: "2",
+  });
+
+  return c.json({
+    version_history: changes.keys.map((entry) => ({
+      date: entry.name,
+      from_version: entry.metadata?.from_version || null,
+      to_version: entry.metadata?.to_version || null,
+    })),
+  });
+});
+
+app.notFound((c) => {
+  return c.json({ error: "Not found" }, 404);
+});
+
 export default {
-  async fetch(
-    request: Request,
-    env: Env,
-    _ctx: ExecutionContext,
-  ): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    switch (pathname) {
-      case "/": {
-        const { date, version } = (await getLatestVersion(env)) || {};
-
-        const lastChangeDate = await env.MAP_VERSION_CHANGES.get("last_change");
-        const lastChange = lastChangeDate
-          ? await env.MAP_VERSION_CHANGES.get<VersionChange>(lastChangeDate, {
-              type: "json",
-            })
-          : null;
-
-        let lastCheckedTime = "";
-        if (date) {
-          const dateTimeString = `${date}T12:00Z`;
-          const formatted = formatRelativeTime(dateTimeString);
-          const title = formatDateTime(dateTimeString);
-          lastCheckedTime = `<p>Last checked <time datetime="${dateTimeString}" title="${title}">${formatted} ago</time>.</p>`;
-        }
-
-        return new Response(
-          `<!doctype html>
-<html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width">
-<title>What is the latest TomTom map version?</title>
-<h1>Latest TomTom map version is ${version ?? "currently unknown"}</h1>
-${lastCheckedTime}
-${
-  lastChange && lastChangeDate
-    ? (() => {
-        const dateBefore = `${getDateOneDayBefore(lastChangeDate)}T12:00Z`;
-        const dateAfter = `${lastChangeDate}T12:00Z`;
-        const relativeTime = formatRelativeTime(dateAfter);
-        const formattedBefore = formatDateTime(dateBefore);
-        const formattedAfter = formatDateTime(dateAfter);
-        return `<p>Version ${lastChange.to_version} was released ${relativeTime} ago, between <time datetime="${dateBefore}">${formattedBefore}</time> and <time datetime="${dateAfter}">${formattedAfter}</time>. Previous map version was ${lastChange.from_version}.</p>`;
-      })()
-    : ""
-}
-<nav>
-<p><a href="/v1">JSON API</a></p>
-</nav>
-</html>`,
-          {
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-              "Cache-Control": "no-cache",
-            },
-          },
-        );
-      }
-
-      case "/v1":
-        return new Response(
-          `<!doctype html>
-<html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width">
-<title>TomTom Map Version API</title>
-<h1>TomTom Map Version API</h1>
-<ul>
-<li><a href="/v1/current">Current map version</a></li>
-<li><a href="/v1/history">Version history</a></li>
-</ul>
-<nav>
-<p><a href="/">Front page</a></p>
-</nav>
-</html>`,
-          {
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-              "Cache-Control": "no-cache",
-            },
-          },
-        );
-
-      case "/v1/current": {
-        const versionWithDate: { date: string; version: string } | undefined =
-          await getLatestVersion(env);
-
-        return Response.json(
-          {
-            current_map_version: versionWithDate?.version ?? null,
-            last_checked: versionWithDate?.date ?? null,
-          },
-          { headers: { "Cache-Control": "no-cache" } },
-        );
-      }
-
-      case "/v1/history": {
-        const changes = await env.MAP_VERSION_CHANGES.list<VersionChange>({
-          prefix: "2",
-        });
-
-        return Response.json(
-          {
-            version_history: changes.keys.map((entry) => ({
-              date: entry.name,
-              from_version: entry.metadata?.from_version || null,
-              to_version: entry.metadata?.to_version || null,
-            })),
-          },
-          { headers: { "Cache-Control": "no-cache" } },
-        );
-      }
-
-      default:
-        return Response.json(
-          { error: "Not found" },
-          {
-            status: 404,
-            headers: { "Cache-Control": "no-cache" },
-          },
-        );
-    }
-  },
-
+  fetch: app.fetch,
   async scheduled(
     _event: ScheduledEvent,
     env: Env,
@@ -208,7 +222,6 @@ async function fetchMapVersion(env: Env): Promise<string> {
 
   let body = await res.text();
 
-  // Remove HTML tags from body
   body = body.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s{2,}/g, " ");
 
   const versionMatch = body.match(/latest map version is (\d{4})/i);
