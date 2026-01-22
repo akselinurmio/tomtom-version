@@ -10,14 +10,17 @@
     "cf-typegen": "wrangler types",
     "prettier": "prettier --write .",
     "prettier:check": "prettier --check .",
+    "test": "vitest run",
     "typecheck": "tsc"
   },
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.12.6",
     "prettier": "3.6.2",
     "typescript": "5.9.3",
+    "vitest": "3.2.4",
     "wrangler": "4.40.3"
   }
 }

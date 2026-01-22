@@ -1,11 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2021",
-    "lib": ["es2021"],
-    "jsx": "react",
-    "module": "es2022",
-    "moduleResolution": "node",
-    "types": ["./worker-configuration.d.ts"],
+    "target": "ESNext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers"],
     "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
