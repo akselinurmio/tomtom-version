@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { formatRelativeTime } from "./relative-time.js";
 import { formatDateTime } from "./format-datetime.js";
 
@@ -180,7 +181,7 @@ ${
 
       const key = getTodayDate();
       const change: VersionChange = {
-        created_at: Date.now(),
+        created_at: Temporal.Now.instant().epochMilliseconds,
         from_version: previousVersion,
         to_version: latestVersion,
       };
@@ -273,11 +274,12 @@ async function reportError(
 }
 
 function getDateOneDayBefore(date?: string) {
-  const dateObj = new Date(date || Date.now());
-  dateObj.setUTCDate(dateObj.getUTCDate() - 1);
-  return dateObj.toISOString().substring(0, 10);
+  const dateObj = date
+    ? Temporal.PlainDate.from(date)
+    : Temporal.Now.plainDateISO("UTC");
+  return dateObj.subtract({ days: 1 }).toString();
 }
 
 function getTodayDate() {
-  return new Date().toISOString().substring(0, 10);
+  return Temporal.Now.plainDateISO("UTC").toString();
 }
