@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { FC } from "hono/jsx";
+import { html } from "hono/html";
 import { Temporal } from "@js-temporal/polyfill";
 import { formatRelativeTime } from "./relative-time.js";
 import { formatDateTime } from "./format-datetime.js";
@@ -19,12 +20,15 @@ const Layout: FC<{ title: string; children?: unknown }> = ({
   children,
 }) => {
   return (
-    <html lang="en">
-      <meta charSet="utf-8" />
-      <meta name="viewport" content="width=device-width" />
-      <title>{title}</title>
-      {children}
-    </html>
+    <>
+      {html`<!doctype html>`}
+      <html lang="en">
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>{title}</title>
+        {children}
+      </html>
+    </>
   );
 };
 
