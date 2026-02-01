@@ -21,7 +21,7 @@
     "@cloudflare/vitest-pool-workers": "0.12.6",
     "prettier": "3.8.1",
     "typescript": "5.9.3",
-    "vitest": "3.2.4",
+    "vitest": "4.0.18",
     "wrangler": "4.60.0"
   }
 }
