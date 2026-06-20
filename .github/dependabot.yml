@@ -14,3 +14,11 @@ updates:
         patterns:
           - "@cloudflare/*"
           - "wrangler"
+        exclude-patterns:
+          - "@cloudflare/*vitest*"
+      vitest:
+        applies-to: version-updates
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "*vitest*"
