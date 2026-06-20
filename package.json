@@ -18,10 +18,10 @@
     "hono": "4.12.26"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "0.12.18",
+    "@cloudflare/vitest-pool-workers": "0.16.18",
     "prettier": "3.8.3",
     "typescript": "6.0.3",
-    "vitest": "3.2.4",
+    "vitest": "4.1.9",
     "wrangler": "4.103.0"
   }
 }
