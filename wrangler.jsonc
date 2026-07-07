@@ -1,5 +1,5 @@
 {
-  "compatibility_date": "2025-09-02",
+  "compatibility_date": "2026-06-16",
   "main": "./src/index.tsx",
   "name": "tomtom-version",
   "kv_namespaces": [
@@ -13,7 +13,13 @@
     }
   ],
   "observability": {
-    "enabled": true
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true
+    }
   },
   "triggers": {
     "crons": ["0 12 * * *"]
