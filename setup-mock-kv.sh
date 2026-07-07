@@ -3,16 +3,16 @@
 set -euo pipefail
 
 TODAY=$(date -u +"%Y-%m-%d")
-
-echo "Adding mock data to MAP_VERSIONS..."
 CHECKED_AT=$(date -u +%s)000
+
+echo "Adding last_checked (current state) to MAP_VERSION_CHANGES..."
 npx wrangler kv key put \
-  --binding=MAP_VERSIONS \
+  --binding=MAP_VERSION_CHANGES \
   --local \
-  "$TODAY" \
+  "last_checked" \
   "{\"version\":\"2024\",\"checked_at\":$CHECKED_AT}"
 
-echo "Adding mock data to MAP_VERSION_CHANGES..."
+echo "Adding a change entry to MAP_VERSION_CHANGES..."
 VERSION_CHANGE='{"created_at":1731974400000,"from_version":"2023","to_version":"2024"}'
 npx wrangler kv key put \
   --binding=MAP_VERSION_CHANGES \
@@ -21,7 +21,7 @@ npx wrangler kv key put \
   "$VERSION_CHANGE" \
   --metadata '{"from_version":"2023","to_version":"2024"}'
 
-echo "Adding last_change key to MAP_VERSION_CHANGES..."
+echo "Adding last_change pointer to MAP_VERSION_CHANGES..."
 npx wrangler kv key put \
   --binding=MAP_VERSION_CHANGES \
   --local \
@@ -29,4 +29,3 @@ npx wrangler kv key put \
   "$TODAY"
 
 echo "Mock KV data setup complete!"
-

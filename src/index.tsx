@@ -41,15 +41,10 @@ const Layout: FC<{ title: string; children?: unknown }> = ({
 const HomePage: FC<{
   version?: string;
   checkedAt?: number;
-  lastCheckedDate?: string;
   lastChange?: VersionChange;
   lastChangeDate?: string;
-}> = ({ version, checkedAt, lastCheckedDate, lastChange, lastChangeDate }) => {
-  const checkedAtIso = checkedAt
-    ? epochMsToIso(checkedAt)
-    : lastCheckedDate
-      ? `${lastCheckedDate}T12:00Z`
-      : undefined;
+}> = ({ version, checkedAt, lastChange, lastChangeDate }) => {
+  const checkedAtIso = checkedAt ? epochMsToIso(checkedAt) : undefined;
   const lastChangeIso = lastChange
     ? epochMsToIso(lastChange.created_at)
     : undefined;
@@ -108,7 +103,7 @@ const ApiPage: FC = () => {
 };
 
 app.get("/", async (c) => {
-  const latest = await getLatestVersion(c.env);
+  const current = await getCurrentState(c.env);
 
   const lastChangeDate = await c.env.MAP_VERSION_CHANGES.get("last_change");
   const lastChange = lastChangeDate
@@ -119,9 +114,8 @@ app.get("/", async (c) => {
 
   return c.html(
     <HomePage
-      version={latest?.version}
-      checkedAt={latest?.checked_at}
-      lastCheckedDate={latest?.date}
+      version={current?.version}
+      checkedAt={current?.checked_at}
       lastChange={lastChange || undefined}
       lastChangeDate={lastChangeDate || undefined}
     />,
@@ -133,11 +127,15 @@ app.get("/v1", (c) => {
 });
 
 app.get("/v1/current", async (c) => {
-  const latest = await getLatestVersion(c.env);
+  const current = await getCurrentState(c.env);
+
+  if (!current) {
+    return c.json({ error: "No version data available right now" }, 503);
+  }
 
   return c.json({
-    current_map_version: latest?.version ?? null,
-    last_checked: latest?.checked_at ?? null,
+    current_map_version: current.version,
+    last_checked: current.checked_at,
   });
 });
 
@@ -159,6 +157,11 @@ app.notFound((c) => {
   return c.json({ error: "Not found" }, 404);
 });
 
+app.onError((err, c) => {
+  console.error(err);
+  return c.json({ error: "Internal server error" }, 500);
+});
+
 export default {
   fetch: app.fetch,
   async scheduled(
@@ -168,7 +171,7 @@ export default {
   ): Promise<void> {
     let previousVersion: string | null = null;
     try {
-      previousVersion = (await getLatestVersion(env))?.version || null;
+      previousVersion = (await getCurrentState(env))?.version ?? null;
     } catch (e) {
       console.error("Error occurred while checking previous map version.", e);
     }
@@ -186,12 +189,14 @@ export default {
       throw e;
     }
 
+    const checkedAt = Temporal.Now.instant().epochMilliseconds;
+
     try {
-      await env.MAP_VERSIONS.put(
-        getTodayDate(),
+      await env.MAP_VERSION_CHANGES.put(
+        "last_checked",
         JSON.stringify({
           version: latestVersion,
-          checked_at: Temporal.Now.instant().epochMilliseconds,
+          checked_at: checkedAt,
         } satisfies VersionEntry),
       );
     } catch (e) {
@@ -215,7 +220,7 @@ export default {
 
       const key = getTodayDate();
       const change: VersionChange = {
-        created_at: Temporal.Now.instant().epochMilliseconds,
+        created_at: checkedAt,
         from_version: previousVersion,
         to_version: latestVersion,
       };
@@ -253,31 +258,10 @@ async function fetchMapVersion(env: Env): Promise<string> {
   return versionMatch[1];
 }
 
-async function getLatestVersion(env: Env) {
-  const dates = [getTodayDate(), getDateOneDayBefore()];
-  const versionsMap = await env.MAP_VERSIONS.get(dates);
-
-  for (const date of dates) {
-    const raw = versionsMap.get(date);
-    if (!raw) continue;
-
-    let entry: VersionEntry;
-    try {
-      const parsed = JSON.parse(raw) as VersionEntry;
-      if (!parsed.version) throw new Error();
-      entry = parsed;
-    } catch {
-      entry = { version: raw, checked_at: 0 };
-    }
-
-    return {
-      date,
-      version: entry.version,
-      checked_at: entry.checked_at || undefined,
-    };
-  }
-
-  return undefined;
+function getCurrentState(env: Env): Promise<VersionEntry | null> {
+  return env.MAP_VERSION_CHANGES.get<VersionEntry>("last_checked", {
+    type: "json",
+  });
 }
 
 async function sendEmail(

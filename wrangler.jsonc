@@ -4,10 +4,6 @@
   "name": "tomtom-version",
   "kv_namespaces": [
     {
-      "binding": "MAP_VERSIONS",
-      "id": "d84dad3b933448af81e9861948da8086"
-    },
-    {
       "binding": "MAP_VERSION_CHANGES",
       "id": "7c192d8cdc3b48b088b0407caaad4fda"
     }
@@ -26,5 +22,8 @@
   },
   "vars": {
     "WEB_PAGE_URL": "https://help.tomtom.com/hc/en-gb/articles/360013959519-Latest-maps-for-navigation-devices"
+  },
+  "secrets": {
+    "required": ["RESEND_API_KEY", "NOTIFY_EMAIL"]
   }
 }
