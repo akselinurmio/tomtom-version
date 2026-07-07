@@ -4,6 +4,12 @@ import { html } from "hono/html";
 import { Temporal } from "@js-temporal/polyfill";
 import { formatRelativeTime } from "./relative-time.js";
 import { formatDateTime } from "./format-datetime.js";
+import { epochMsToIso } from "./epoch-ms-to-iso.js";
+
+type VersionEntry = {
+  version: string;
+  checked_at: number;
+};
 
 type VersionChange = {
   created_at: number;
@@ -34,37 +40,41 @@ const Layout: FC<{ title: string; children?: unknown }> = ({
 
 const HomePage: FC<{
   version?: string;
+  checkedAt?: number;
   lastCheckedDate?: string;
   lastChange?: VersionChange;
   lastChangeDate?: string;
-}> = ({ version, lastCheckedDate, lastChange, lastChangeDate }) => {
+}> = ({ version, checkedAt, lastCheckedDate, lastChange, lastChangeDate }) => {
+  const checkedAtIso = checkedAt
+    ? epochMsToIso(checkedAt)
+    : lastCheckedDate
+      ? `${lastCheckedDate}T12:00Z`
+      : undefined;
+  const lastChangeIso = lastChange
+    ? epochMsToIso(lastChange.created_at)
+    : undefined;
   return (
     <Layout title="What is the latest TomTom map version?">
       <h1>Latest TomTom map version is {version ?? "currently unknown"}</h1>
-      {lastCheckedDate && (
+      {checkedAtIso && (
         <p>
           Last checked{" "}
-          <time
-            datetime={`${lastCheckedDate}T12:00Z`}
-            title={formatDateTime(`${lastCheckedDate}T12:00Z`)}
-          >
-            {formatRelativeTime(`${lastCheckedDate}T12:00Z`)} ago
+          <time datetime={checkedAtIso} title={formatDateTime(checkedAtIso)}>
+            {formatRelativeTime(checkedAtIso)} ago
           </time>
           .
         </p>
       )}
-      {lastChange && lastChangeDate && (
+      {lastChange && lastChangeDate && lastChangeIso && (
         <p>
           Version {lastChange.to_version} was released{" "}
-          {formatRelativeTime(`${lastChangeDate}T12:00Z`)} ago, between{" "}
+          {formatRelativeTime(lastChangeIso)} ago, between{" "}
           <time datetime={`${getDateOneDayBefore(lastChangeDate)}T12:00Z`}>
             {formatDateTime(`${getDateOneDayBefore(lastChangeDate)}T12:00Z`)}
           </time>{" "}
           and{" "}
-          <time datetime={`${lastChangeDate}T12:00Z`}>
-            {formatDateTime(`${lastChangeDate}T12:00Z`)}
-          </time>
-          . Previous map version was {lastChange.from_version}.
+          <time datetime={lastChangeIso}>{formatDateTime(lastChangeIso)}</time>.
+          Previous map version was {lastChange.from_version}.
         </p>
       )}
       <nav>
@@ -98,7 +108,7 @@ const ApiPage: FC = () => {
 };
 
 app.get("/", async (c) => {
-  const { date, version } = (await getLatestVersion(c.env)) || {};
+  const latest = await getLatestVersion(c.env);
 
   const lastChangeDate = await c.env.MAP_VERSION_CHANGES.get("last_change");
   const lastChange = lastChangeDate
@@ -109,8 +119,9 @@ app.get("/", async (c) => {
 
   return c.html(
     <HomePage
-      version={version}
-      lastCheckedDate={date}
+      version={latest?.version}
+      checkedAt={latest?.checked_at}
+      lastCheckedDate={latest?.date}
       lastChange={lastChange || undefined}
       lastChangeDate={lastChangeDate || undefined}
     />,
@@ -122,12 +133,11 @@ app.get("/v1", (c) => {
 });
 
 app.get("/v1/current", async (c) => {
-  const versionWithDate: { date: string; version: string } | undefined =
-    await getLatestVersion(c.env);
+  const latest = await getLatestVersion(c.env);
 
   return c.json({
-    current_map_version: versionWithDate?.version ?? null,
-    last_checked: versionWithDate?.date ?? null,
+    current_map_version: latest?.version ?? null,
+    last_checked: latest?.checked_at ?? null,
   });
 });
 
@@ -177,7 +187,13 @@ export default {
     }
 
     try {
-      await env.MAP_VERSIONS.put(getTodayDate(), latestVersion);
+      await env.MAP_VERSIONS.put(
+        getTodayDate(),
+        JSON.stringify({
+          version: latestVersion,
+          checked_at: Temporal.Now.instant().epochMilliseconds,
+        } satisfies VersionEntry),
+      );
     } catch (e) {
       console.error(e);
       await reportError("Error occurred while saving map version.", e, env);
@@ -242,10 +258,23 @@ async function getLatestVersion(env: Env) {
   const versionsMap = await env.MAP_VERSIONS.get(dates);
 
   for (const date of dates) {
-    const version = versionsMap.get(date);
-    if (version) {
-      return { date, version };
+    const raw = versionsMap.get(date);
+    if (!raw) continue;
+
+    let entry: VersionEntry;
+    try {
+      const parsed = JSON.parse(raw) as VersionEntry;
+      if (!parsed.version) throw new Error();
+      entry = parsed;
+    } catch {
+      entry = { version: raw, checked_at: 0 };
     }
+
+    return {
+      date,
+      version: entry.version,
+      checked_at: entry.checked_at || undefined,
+    };
   }
 
   return undefined;
