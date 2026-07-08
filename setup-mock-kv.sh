@@ -13,7 +13,7 @@ npx wrangler kv key put \
   "{\"version\":\"2024\",\"checked_at\":$CHECKED_AT}"
 
 echo "Adding a change entry to MAP_VERSION_CHANGES..."
-VERSION_CHANGE='{"created_at":1731974400000,"from_version":"2023","to_version":"2024"}'
+VERSION_CHANGE="{\"created_at\":$CHECKED_AT,\"from_version\":\"2023\",\"to_version\":\"2024\"}"
 npx wrangler kv key put \
   --binding=MAP_VERSION_CHANGES \
   --local \

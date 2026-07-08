@@ -2,9 +2,6 @@ import { Hono } from "hono";
 import type { FC } from "hono/jsx";
 import { html } from "hono/html";
 import { Temporal } from "@js-temporal/polyfill";
-import { formatRelativeTime } from "./relative-time.js";
-import { formatDateTime } from "./format-datetime.js";
-import { epochMsToIso } from "./epoch-ms-to-iso.js";
 
 type VersionEntry = {
   version: string;
@@ -42,8 +39,7 @@ const HomePage: FC<{
   version?: string;
   checkedAt?: number;
   lastChange?: VersionChange;
-  lastChangeDate?: string;
-}> = ({ version, checkedAt, lastChange, lastChangeDate }) => {
+}> = ({ version, checkedAt, lastChange }) => {
   const checkedAtIso = checkedAt ? epochMsToIso(checkedAt) : undefined;
   const lastChangeIso = lastChange
     ? epochMsToIso(lastChange.created_at)
@@ -55,21 +51,18 @@ const HomePage: FC<{
         <p>
           Last checked{" "}
           <time datetime={checkedAtIso} title={formatDateTime(checkedAtIso)}>
-            {formatRelativeTime(checkedAtIso)} ago
+            {formatRelativeTime(checkedAtIso, "minutes")}
           </time>
           .
         </p>
       )}
-      {lastChange && lastChangeDate && lastChangeIso && (
+      {lastChange && lastChangeIso && (
         <p>
           Version {lastChange.to_version} was released{" "}
-          {formatRelativeTime(lastChangeIso)} ago, between{" "}
-          <time datetime={`${getDateOneDayBefore(lastChangeDate)}T12:00Z`}>
-            {formatDateTime(`${getDateOneDayBefore(lastChangeDate)}T12:00Z`)}
-          </time>{" "}
-          and{" "}
-          <time datetime={lastChangeIso}>{formatDateTime(lastChangeIso)}</time>.
-          Previous map version was {lastChange.from_version}.
+          <time datetime={lastChangeIso} title={formatDateTime(lastChangeIso)}>
+            {formatRelativeTime(lastChangeIso, "days")}
+          </time>
+          . Previous map version was {lastChange.from_version}.
         </p>
       )}
       <nav>
@@ -117,7 +110,6 @@ app.get("/", async (c) => {
       version={current?.version}
       checkedAt={current?.checked_at}
       lastChange={lastChange || undefined}
-      lastChangeDate={lastChangeDate || undefined}
     />,
   );
 });
@@ -135,7 +127,7 @@ app.get("/v1/current", async (c) => {
 
   return c.json({
     current_map_version: current.version,
-    last_checked: current.checked_at,
+    last_checked: epochMsToIso(current.checked_at),
   });
 });
 
@@ -303,13 +295,46 @@ async function reportError(
   await sendEmail("Error in TomTom map version check", fullMessage, env);
 }
 
-function getDateOneDayBefore(date?: string) {
-  const dateObj = date
-    ? Temporal.PlainDate.from(date)
-    : Temporal.Now.plainDateISO("UTC");
-  return dateObj.subtract({ days: 1 }).toString();
-}
-
 function getTodayDate() {
   return Temporal.Now.plainDateISO("UTC").toString();
+}
+
+function epochMsToIso(ms: number): string {
+  return Temporal.Instant.fromEpochMilliseconds(ms).toString({
+    smallestUnit: "second",
+  });
+}
+
+function formatDateTime(dateTimeString: string): string {
+  const instant = Temporal.Instant.from(dateTimeString);
+
+  return instant.toLocaleString("en", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    timeZoneName: "short",
+  });
+}
+
+function formatRelativeTime(
+  temporalString: string,
+  smallestUnit: "minutes" | "days",
+): string {
+  const temporalDate =
+    Temporal.Instant.from(temporalString).toZonedDateTimeISO("UTC");
+  const now = Temporal.Now.zonedDateTimeISO("UTC");
+  const duration = now.since(temporalDate, { smallestUnit });
+  const roundedDuration = duration.round({
+    largestUnit: "years",
+    smallestUnit,
+    relativeTo: temporalDate,
+  });
+
+  if (roundedDuration.sign === 0) {
+    return smallestUnit === "days" ? "today" : "just now";
+  }
+
+  return `${roundedDuration.toLocaleString("en", { style: "long" })} ago`;
 }
