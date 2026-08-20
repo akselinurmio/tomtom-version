@@ -269,7 +269,7 @@ async function sendEmail(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "TomTom Map version checker <noreply@akselinurmio.fi>",
+      from: "TomTom Map version checker <noreply@notifications.akselinurmio.fi>",
       to: env.NOTIFY_EMAIL,
       subject: subject,
       text: message,
