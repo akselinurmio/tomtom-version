@@ -26,7 +26,8 @@ const FIXED_NOW_MS = Temporal.Instant.from(
   "2026-01-15T12:00:00Z",
 ).epochMilliseconds;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const CRON_SCHEDULE = "0 12 * * *";
+const CRON_SCHEDULE = "0 * * * *";
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -74,7 +75,20 @@ function captureNotificationEmail() {
   return captured;
 }
 
-async function runDailyCheck() {
+function captureNotificationEmails() {
+  const captured: NotificationEmail[] = [];
+  fetchMock
+    .get("https://api.resend.com")
+    .intercept({ path: "/emails", method: "POST" })
+    .reply(200, (request) => {
+      captured.push(JSON.parse(request.body as string));
+      return { id: "test-id" };
+    })
+    .persist();
+  return captured;
+}
+
+async function runScheduledCheck() {
   const controller = createScheduledController({ cron: CRON_SCHEDULE });
   const context = createExecutionContext();
   await worker.scheduled(controller, env, context);
@@ -134,7 +148,7 @@ it("scheduled job emails a notification when the map version changes", async () 
   stubMapVersionPage("2025");
   const captured = captureNotificationEmail();
 
-  await runDailyCheck();
+  await runScheduledCheck();
 
   expect(captured.email).not.toBeNull();
   expect(captured.email!.to).toBe("test@example.com");
@@ -156,7 +170,7 @@ it("scheduled job records no change when the map version is unchanged", async ()
   await seedCurrentState("2025");
   stubMapVersionPage("2025");
 
-  await runDailyCheck();
+  await runScheduledCheck();
 
   expect(await env.MAP_VERSION_CHANGES.get("last_change")).toBeNull();
 });
@@ -164,7 +178,7 @@ it("scheduled job records no change when the map version is unchanged", async ()
 it("scheduled job records no change on the first ever check", async () => {
   stubMapVersionPage("2025");
 
-  await runDailyCheck();
+  await runScheduledCheck();
 
   expect(await env.MAP_VERSION_CHANGES.get("last_change")).toBeNull();
   const state = await env.MAP_VERSION_CHANGES.get<VersionEntry>(
@@ -184,7 +198,7 @@ it("scheduled job survives several consecutive days of the page being down", asy
     stubMapVersionPageDown();
     const outage = captureNotificationEmail();
 
-    await expect(runDailyCheck()).rejects.toThrow();
+    await expect(runScheduledCheck()).rejects.toThrow();
 
     expect(outage.email!.subject).toBe("Error in TomTom map version check");
 
@@ -207,7 +221,7 @@ it("scheduled job survives several consecutive days of the page being down", asy
   stubMapVersionPage("2025");
   const recovery = captureNotificationEmail();
 
-  await runDailyCheck();
+  await runScheduledCheck();
 
   expect(recovery.email!.subject).toBe("New TomTom map version available");
   expect(recovery.email!.text).toContain("2024");
@@ -221,4 +235,25 @@ it("scheduled job survives several consecutive days of the page being down", asy
   );
   expect(state!.version).toBe("2025");
   expect(await env.MAP_VERSION_CHANGES.get("last_change")).not.toBeNull();
+});
+
+it("scheduled job suppresses repeated error alerts within 24h when checked hourly", async () => {
+  await seedCurrentState("2024");
+  const emails = captureNotificationEmails();
+
+  stubMapVersionPageDown();
+  await expect(runScheduledCheck()).rejects.toThrow();
+  expect(emails).toHaveLength(1);
+
+  for (let hour = 1; hour <= 5; hour++) {
+    vi.setSystemTime(FIXED_NOW_MS + hour * ONE_HOUR_MS);
+    stubMapVersionPageDown();
+    await expect(runScheduledCheck()).rejects.toThrow();
+  }
+  expect(emails).toHaveLength(1);
+
+  vi.setSystemTime(FIXED_NOW_MS + ONE_DAY_MS + ONE_HOUR_MS);
+  stubMapVersionPageDown();
+  await expect(runScheduledCheck()).rejects.toThrow();
+  expect(emails).toHaveLength(2);
 });

@@ -14,6 +14,8 @@ type VersionChange = {
   to_version: string;
 };
 
+const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
+
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
 });
@@ -291,8 +293,23 @@ async function reportError(
   exception: unknown,
   env: Env,
 ): Promise<void> {
+  const now = Temporal.Now.instant().epochMilliseconds;
+  const lastAlertRaw = await env.MAP_VERSION_CHANGES.get("last_error_alert");
+  const lastAlert = lastAlertRaw === null ? NaN : Number(lastAlertRaw);
+
+  if (
+    Number.isInteger(lastAlert) &&
+    now - lastAlert < ERROR_ALERT_THROTTLE_MS
+  ) {
+    console.log(
+      "Suppressing error alert email; one was already sent within the last 24h",
+    );
+    return;
+  }
+
   const fullMessage = `${message}\n\n${exception}`;
   await sendEmail("Error in TomTom map version check", fullMessage, env);
+  await env.MAP_VERSION_CHANGES.put("last_error_alert", String(now));
 }
 
 function getTodayDate(): string {

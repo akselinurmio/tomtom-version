@@ -18,7 +18,7 @@
     }
   },
   "triggers": {
-    "crons": ["0 12 * * *"]
+    "crons": ["0 * * * *"]
   },
   "vars": {
     "WEB_PAGE_URL": "https://help.tomtom.com/hc/en-gb/articles/360013959519-Latest-maps-for-navigation-devices"
