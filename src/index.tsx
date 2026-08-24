@@ -295,14 +295,12 @@ async function reportError(
   await sendEmail("Error in TomTom map version check", fullMessage, env);
 }
 
-function getTodayDate() {
+function getTodayDate(): string {
   return Temporal.Now.plainDateISO("UTC").toString();
 }
 
 function epochMsToIso(ms: number): string {
-  return Temporal.Instant.fromEpochMilliseconds(ms).toString({
-    smallestUnit: "second",
-  });
+  return Temporal.Instant.fromEpochMilliseconds(ms).toString();
 }
 
 function formatDateTime(dateTimeString: string): string {
