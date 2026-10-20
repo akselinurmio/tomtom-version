@@ -203,9 +203,6 @@ export default {
       };
     }
 
-    // The change record is written before last_checked so that if any write
-    // fails, last_checked still holds the previous version and the next run
-    // detects (and records) the change again instead of losing it.
     try {
       if (change) {
         const key = getTodayDate();
