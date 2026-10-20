@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import type { FC } from "hono/jsx";
 import { html } from "hono/html";
 import { cors } from "hono/cors";
-import { etag, RETAINED_304_HEADERS } from "hono/etag";
 import { Temporal } from "@js-temporal/polyfill";
 
 type VersionEntry = {
@@ -26,17 +25,6 @@ app.use(
   cors({
     origin: "*",
     allowMethods: ["GET", "HEAD"],
-    exposeHeaders: ["ETag"],
-  }),
-);
-
-app.use(
-  etag({
-    retainedHeaders: [
-      ...RETAINED_304_HEADERS,
-      "access-control-allow-origin",
-      "access-control-expose-headers",
-    ],
   }),
 );
 

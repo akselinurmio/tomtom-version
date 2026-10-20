@@ -299,7 +299,7 @@ it("scheduled job alerts on and retries a change whose record failed to save", a
   expect(await env.MAP_VERSION_CHANGES.get("last_change")).not.toBeNull();
 });
 
-it("/v1/current sends CORS, Cache-Control and ETag headers", async () => {
+it("/v1/current sends CORS and Cache-Control headers", async () => {
   await seedCurrentState("2024", FIXED_NOW_MS);
 
   const response = await SELF.fetch("https://example.com/v1/current", {
@@ -308,42 +308,7 @@ it("/v1/current sends CORS, Cache-Control and ETag headers", async () => {
 
   expect(response.status).toBe(200);
   expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  expect(response.headers.get("Access-Control-Expose-Headers")).toBe("ETag");
   expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
-  expect(response.headers.get("ETag")).toMatch(/^"[0-9a-f]+"$/);
-});
-
-it("/v1/history returns 304 with CORS headers when the ETag matches", async () => {
-  const first = await SELF.fetch("https://example.com/v1/history");
-  const etag = first.headers.get("ETag");
-  expect(etag).toBeTruthy();
-  await first.arrayBuffer();
-
-  const response = await SELF.fetch("https://example.com/v1/history", {
-    headers: { Origin: "https://app.example.org", "If-None-Match": etag! },
-  });
-
-  expect(response.status).toBe(304);
-  expect(await response.text()).toBe("");
-  expect(response.headers.get("ETag")).toBe(etag);
-  expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
-  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  expect(response.headers.get("Access-Control-Expose-Headers")).toBe("ETag");
-});
-
-it("/v1/current ETag changes when the data changes", async () => {
-  await seedCurrentState("2024", FIXED_NOW_MS);
-  const before = await SELF.fetch("https://example.com/v1/current");
-  await before.arrayBuffer();
-
-  await seedCurrentState("2025", FIXED_NOW_MS);
-  const after = await SELF.fetch("https://example.com/v1/current", {
-    headers: { "If-None-Match": before.headers.get("ETag")! },
-  });
-
-  expect(after.status).toBe(200);
-  expect(after.headers.get("ETag")).not.toBe(before.headers.get("ETag"));
-  await after.arrayBuffer();
 });
 
 it("CORS preflight is answered for the JSON API", async () => {
@@ -352,7 +317,7 @@ it("CORS preflight is answered for the JSON API", async () => {
     headers: {
       Origin: "https://app.example.org",
       "Access-Control-Request-Method": "GET",
-      "Access-Control-Request-Headers": "If-None-Match",
+      "Access-Control-Request-Headers": "X-Requested-With",
     },
   });
 
@@ -360,7 +325,7 @@ it("CORS preflight is answered for the JSON API", async () => {
   expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
   expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET,HEAD");
   expect(response.headers.get("Access-Control-Allow-Headers")).toBe(
-    "If-None-Match",
+    "X-Requested-With",
   );
 });
 
@@ -385,7 +350,6 @@ it.each([
     expect(response.status).toBe(status);
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
-    expect(response.headers.get("ETag")).toBeNull();
     await response.arrayBuffer();
   },
 );
