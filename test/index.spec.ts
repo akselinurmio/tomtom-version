@@ -8,6 +8,7 @@ import {
   waitOnExecutionContext,
 } from "cloudflare:test";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { computeReleaseCadence } from "../src/cadence.js";
 import worker from "../src/index.js";
 
 type VersionEntry = {
@@ -86,6 +87,17 @@ function captureNotificationEmails(times: number) {
     })
     .times(times);
   return captured;
+}
+
+function seedChange(date: string, fromVersion: string, toVersion: string) {
+  const change = {
+    created_at: Temporal.Instant.from(`${date}T12:00:00Z`).epochMilliseconds,
+    from_version: fromVersion,
+    to_version: toVersion,
+  };
+  return env.MAP_VERSION_CHANGES.put(date, JSON.stringify(change), {
+    metadata: change,
+  });
 }
 
 async function runScheduledCheck() {
@@ -367,3 +379,64 @@ it.each(["/", "/v1"])(
     await response.arrayBuffer();
   },
 );
+
+it("computeReleaseCadence is not skewed by an outlier gap", () => {
+  // Real history, given out of order: the first gap (188 days) spans a
+  // release that wasn't recorded. The mean gap would be 105 days; the median
+  // is 91.
+  const cadence = computeReleaseCadence([
+    "2025-11-25",
+    "2024-08-15",
+    "2026-08-18",
+    "2025-05-13",
+    "2026-02-24",
+    "2025-02-19",
+    "2026-05-20",
+    "2025-08-20",
+  ]);
+
+  expect(cadence!.releaseCount).toBe(8);
+  expect(cadence!.medianGapDays).toBe(91);
+  expect(cadence!.nextReleaseEstimate.toString()).toBe("2026-11-17");
+});
+
+it("index page shows release cadence and next release estimate", async () => {
+  await seedCurrentState("2026", FIXED_NOW_MS);
+  await seedChange("2025-10-01", "2023", "2024");
+  await seedChange("2025-10-31", "2024", "2025");
+  await seedChange("2025-12-15", "2025", "2026");
+
+  const response = await SELF.fetch("https://example.com/");
+  const text = await response.text();
+
+  expect(text).toContain("typically every 38 days");
+  expect(text).toContain("based on 3 releases");
+  expect(text).toContain("expected around");
+  expect(text).toContain('<time datetime="2026-01-22">January 22, 2026</time>');
+  expect(text).not.toContain("overdue");
+});
+
+it("index page says when the estimated next release is overdue", async () => {
+  await seedCurrentState("2025", FIXED_NOW_MS);
+  await seedChange("2025-10-01", "2023", "2024");
+  await seedChange("2025-11-01", "2024", "2025");
+
+  const response = await SELF.fetch("https://example.com/");
+  const text = await response.text();
+
+  // Estimate is 2025-12-02; the fixed "now" is 2026-01-15.
+  expect(text).toContain("was expected around");
+  expect(text).toContain("December 2, 2025");
+  expect(text).toContain("44 days overdue");
+});
+
+it("index page omits release cadence with fewer than two releases", async () => {
+  await seedCurrentState("2025", FIXED_NOW_MS);
+  await seedChange("2025-11-01", "2024", "2025");
+
+  const response = await SELF.fetch("https://example.com/");
+  const text = await response.text();
+
+  expect(text).not.toContain("typically every");
+  expect(text).not.toContain("expected around");
+});
