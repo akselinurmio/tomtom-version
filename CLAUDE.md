@@ -10,7 +10,7 @@ Live: https://tomtom-version.akseli.workers.dev/
 
 ### HTTP routes
 
-- `GET /` — homepage with current version, last check, last change
+- `GET /` — homepage with current version, last check, last change, and release cadence (average gap between releases and an estimated next release date, shown once at least two changes are recorded; computed in `src/cadence.ts` from the change-entry date keys)
 - `GET /v1` — API docs
 - `GET /v1/current` — JSON: current version + last checked date
 - `GET /v1/history` — JSON: full version change history

@@ -3,6 +3,7 @@ import type { FC } from "hono/jsx";
 import { html } from "hono/html";
 import { cors } from "hono/cors";
 import { Temporal } from "@js-temporal/polyfill";
+import { computeReleaseCadence, type ReleaseCadence } from "./cadence";
 
 type VersionEntry = {
   version: string;
@@ -54,7 +55,8 @@ const HomePage: FC<{
   version?: string;
   checkedAt?: number;
   lastChange?: VersionChange;
-}> = ({ version, checkedAt, lastChange }) => {
+  cadence?: ReleaseCadence;
+}> = ({ version, checkedAt, lastChange, cadence }) => {
   const checkedAtIso = checkedAt ? epochMsToIso(checkedAt) : undefined;
   const lastChangeIso = lastChange
     ? epochMsToIso(lastChange.created_at)
@@ -80,12 +82,38 @@ const HomePage: FC<{
           . Previous map version was {lastChange.from_version}.
         </p>
       )}
+      {cadence && <ReleaseCadenceInfo cadence={cadence} />}
       <nav>
         <p>
           <a href="/v1">JSON API</a>
         </p>
       </nav>
     </Layout>
+  );
+};
+
+const ReleaseCadenceInfo: FC<{ cadence: ReleaseCadence }> = ({ cadence }) => {
+  const estimate = cadence.nextReleaseEstimate;
+  const today = Temporal.Now.plainDateISO("UTC");
+  const overdueDays = estimate.until(today).days;
+  return (
+    <p>
+      New map versions have been released on average every{" "}
+      {formatDays(cadence.averageGapDays)} (based on {cadence.releaseCount}{" "}
+      releases).{" "}
+      {overdueDays > 0 ? (
+        <>
+          The next release was expected around{" "}
+          <time datetime={estimate.toString()}>{formatDate(estimate)}</time>, so
+          it is {formatDays(overdueDays)} overdue.
+        </>
+      ) : (
+        <>
+          The next release is roughly expected around{" "}
+          <time datetime={estimate.toString()}>{formatDate(estimate)}</time>.
+        </>
+      )}
+    </p>
   );
 };
 
@@ -120,11 +148,15 @@ app.get("/", async (c) => {
       })
     : null;
 
+  const changes = await c.env.MAP_VERSION_CHANGES.list({ prefix: "2" });
+  const cadence = computeReleaseCadence(changes.keys.map((key) => key.name));
+
   return c.html(
     <HomePage
       version={current?.version}
       checkedAt={current?.checked_at}
       lastChange={lastChange || undefined}
+      cadence={cadence ?? undefined}
     />,
   );
 });
@@ -347,6 +379,18 @@ function formatDateTime(dateTimeString: string): string {
     minute: "numeric",
     timeZoneName: "short",
   });
+}
+
+function formatDate(date: Temporal.PlainDate): string {
+  return date.toLocaleString("en", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function formatDays(days: number): string {
+  return days === 1 ? "1 day" : `${days} days`;
 }
 
 function formatRelativeTime(
