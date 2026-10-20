@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import type { FC } from "hono/jsx";
 import { html } from "hono/html";
+import { cors } from "hono/cors";
+import { etag, RETAINED_304_HEADERS } from "hono/etag";
 import { Temporal } from "@js-temporal/polyfill";
 
 type VersionEntry = {
@@ -16,8 +18,35 @@ type VersionChange = {
 
 const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
 
+const JSON_CACHE_CONTROL = "public, max-age=300";
+
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
+});
+
+app.use(
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "HEAD"],
+    exposeHeaders: ["ETag"],
+  }),
+);
+
+app.use(
+  etag({
+    retainedHeaders: [
+      ...RETAINED_304_HEADERS,
+      "access-control-allow-origin",
+      "access-control-expose-headers",
+    ],
+  }),
+);
+
+app.use(async (c, next) => {
+  await next();
+  if (c.res.headers.get("Content-Type")?.startsWith("application/json")) {
+    c.header("Cache-Control", c.res.ok ? JSON_CACHE_CONTROL : "no-store");
+  }
 });
 
 const Layout: FC<{ title: string; children?: unknown }> = ({

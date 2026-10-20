@@ -15,6 +15,8 @@ Live: https://tomtom-version.akseli.workers.dev/
 - `GET /v1/current` — JSON: current version + last checked date
 - `GET /v1/history` — JSON: full version change history
 
+All responses allow cross-origin `GET`/`HEAD` (`Access-Control-Allow-Origin: *`, `ETag` exposed) and get an `ETag`. A matching `If-None-Match` returns `304`, and the CORS headers are kept on it. Successful JSON responses send `Cache-Control: public, max-age=300` and JSON errors (404/500/503) send `no-store`.
+
 ### Scheduled job (hourly)
 
 1. Reads the previous version from the `last_checked` state key
