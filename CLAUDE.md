@@ -15,6 +15,8 @@ Live: https://tomtom-version.akseli.workers.dev/
 - `GET /v1/current` — JSON: current version + last checked date
 - `GET /v1/history` — JSON: full version change history
 
+All responses allow cross-origin `GET`/`HEAD` (`Access-Control-Allow-Origin: *`). Every response, HTML or JSON and including errors, sends `Cache-Control: public, max-age=60`.
+
 ### Scheduled job (hourly)
 
 1. Reads the previous version from the `last_checked` state key

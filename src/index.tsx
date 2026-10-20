@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { FC } from "hono/jsx";
 import { html } from "hono/html";
+import { cors } from "hono/cors";
 import { Temporal } from "@js-temporal/polyfill";
 
 type VersionEntry = {
@@ -18,6 +19,18 @@ const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
 
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
+});
+
+app.use(
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "HEAD"],
+  }),
+);
+
+app.use((c, next) => {
+  c.header("Cache-Control", "public, max-age=60");
+  return next();
 });
 
 const Layout: FC<{ title: string; children?: unknown }> = ({

@@ -298,3 +298,72 @@ it("scheduled job alerts on and retries a change whose record failed to save", a
   expect(state!.version).toBe("2025");
   expect(await env.MAP_VERSION_CHANGES.get("last_change")).not.toBeNull();
 });
+
+it("/v1/current sends CORS and Cache-Control headers", async () => {
+  await seedCurrentState("2024", FIXED_NOW_MS);
+
+  const response = await SELF.fetch("https://example.com/v1/current", {
+    headers: { Origin: "https://app.example.org" },
+  });
+
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
+});
+
+it("CORS preflight is answered for the JSON API", async () => {
+  const response = await SELF.fetch("https://example.com/v1/current", {
+    method: "OPTIONS",
+    headers: {
+      Origin: "https://app.example.org",
+      "Access-Control-Request-Method": "GET",
+      "Access-Control-Request-Headers": "X-Requested-With",
+    },
+  });
+
+  expect(response.status).toBe(204);
+  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET,HEAD");
+  expect(response.headers.get("Access-Control-Allow-Headers")).toBe(
+    "X-Requested-With",
+  );
+});
+
+it.each([
+  ["404", "https://example.com/nope", 404, async () => {}],
+  ["503", "https://example.com/v1/current", 503, async () => {}],
+  [
+    "500",
+    "https://example.com/v1/current",
+    500,
+    () => env.MAP_VERSION_CHANGES.put("last_checked", "not valid json"),
+  ],
+] as const)(
+  "%s responses send CORS headers and are cached for one minute",
+  async (_label, url, status, seed) => {
+    await seed();
+
+    const response = await SELF.fetch(url, {
+      headers: { Origin: "https://app.example.org" },
+    });
+
+    expect(response.status).toBe(status);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
+    await response.arrayBuffer();
+  },
+);
+
+it.each(["/", "/v1"])(
+  "%s HTML page sends the same Cache-Control as the JSON API",
+  async (path) => {
+    await seedCurrentState("2024", FIXED_NOW_MS);
+
+    const response = await SELF.fetch(`https://example.com${path}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
+    await response.arrayBuffer();
+  },
+);
