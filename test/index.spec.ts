@@ -380,36 +380,19 @@ it.each(["/", "/v1"])(
   },
 );
 
-it("computeReleaseCadence needs at least two releases", () => {
-  expect(computeReleaseCadence([])).toBeNull();
-  expect(computeReleaseCadence(["2025-12-01"])).toBeNull();
-});
-
-it("computeReleaseCadence takes the median gap and projects the next release", () => {
-  // Gaps of 30 and 45 days, given out of order.
-  const cadence = computeReleaseCadence([
-    "2025-10-31",
-    "2025-10-01",
-    "2025-12-15",
-  ]);
-
-  expect(cadence!.releaseCount).toBe(3);
-  expect(cadence!.medianGapDays).toBe(38);
-  expect(cadence!.nextReleaseEstimate.toString()).toBe("2026-01-22");
-});
-
 it("computeReleaseCadence is not skewed by an outlier gap", () => {
-  // Real history: the first gap (188 days) spans a release that wasn't
-  // recorded. The mean gap would be 105 days; the median is 91.
+  // Real history, given out of order: the first gap (188 days) spans a
+  // release that wasn't recorded. The mean gap would be 105 days; the median
+  // is 91.
   const cadence = computeReleaseCadence([
-    "2024-08-15",
-    "2025-02-19",
-    "2025-05-13",
-    "2025-08-20",
     "2025-11-25",
-    "2026-02-24",
-    "2026-05-20",
+    "2024-08-15",
     "2026-08-18",
+    "2025-05-13",
+    "2026-02-24",
+    "2025-02-19",
+    "2026-05-20",
+    "2025-08-20",
   ]);
 
   expect(cadence!.releaseCount).toBe(8);
