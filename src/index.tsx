@@ -98,8 +98,8 @@ const ReleaseCadenceInfo: FC<{ cadence: ReleaseCadence }> = ({ cadence }) => {
   const overdueDays = estimate.until(today).days;
   return (
     <p>
-      New map versions have been released on average every{" "}
-      {formatDays(cadence.averageGapDays)} (based on {cadence.releaseCount}{" "}
+      New map versions have been released typically every{" "}
+      {formatDays(cadence.medianGapDays)} (based on {cadence.releaseCount}{" "}
       releases).{" "}
       {overdueDays > 0 ? (
         <>

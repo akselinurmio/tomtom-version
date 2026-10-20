@@ -385,7 +385,7 @@ it("computeReleaseCadence needs at least two releases", () => {
   expect(computeReleaseCadence(["2025-12-01"])).toBeNull();
 });
 
-it("computeReleaseCadence averages gaps and projects the next release", () => {
+it("computeReleaseCadence takes the median gap and projects the next release", () => {
   // Gaps of 30 and 45 days, given out of order.
   const cadence = computeReleaseCadence([
     "2025-10-31",
@@ -394,8 +394,27 @@ it("computeReleaseCadence averages gaps and projects the next release", () => {
   ]);
 
   expect(cadence!.releaseCount).toBe(3);
-  expect(cadence!.averageGapDays).toBe(38);
+  expect(cadence!.medianGapDays).toBe(38);
   expect(cadence!.nextReleaseEstimate.toString()).toBe("2026-01-22");
+});
+
+it("computeReleaseCadence is not skewed by an outlier gap", () => {
+  // Real history: the first gap (188 days) spans a release that wasn't
+  // recorded. The mean gap would be 105 days; the median is 91.
+  const cadence = computeReleaseCadence([
+    "2024-08-15",
+    "2025-02-19",
+    "2025-05-13",
+    "2025-08-20",
+    "2025-11-25",
+    "2026-02-24",
+    "2026-05-20",
+    "2026-08-18",
+  ]);
+
+  expect(cadence!.releaseCount).toBe(8);
+  expect(cadence!.medianGapDays).toBe(91);
+  expect(cadence!.nextReleaseEstimate.toString()).toBe("2026-11-17");
 });
 
 it("index page shows release cadence and next release estimate", async () => {
@@ -407,7 +426,7 @@ it("index page shows release cadence and next release estimate", async () => {
   const response = await SELF.fetch("https://example.com/");
   const text = await response.text();
 
-  expect(text).toContain("on average every 38 days");
+  expect(text).toContain("typically every 38 days");
   expect(text).toContain("based on 3 releases");
   expect(text).toContain("expected around");
   expect(text).toContain('<time datetime="2026-01-22">January 22, 2026</time>');
@@ -435,6 +454,6 @@ it("index page omits release cadence with fewer than two releases", async () => 
   const response = await SELF.fetch("https://example.com/");
   const text = await response.text();
 
-  expect(text).not.toContain("on average");
+  expect(text).not.toContain("typically every");
   expect(text).not.toContain("expected around");
 });

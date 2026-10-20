@@ -2,14 +2,16 @@ import { Temporal } from "@js-temporal/polyfill";
 
 export type ReleaseCadence = {
   releaseCount: number;
-  averageGapDays: number;
+  medianGapDays: number;
   nextReleaseEstimate: Temporal.PlainDate;
 };
 
 /**
  * Estimates release cadence from change dates (YYYY-MM-DD). The next release
- * is expected one average gap after the latest one. Needs at least two
- * releases, since a single release has no gap to measure.
+ * is expected one median gap after the latest one. The median is used rather
+ * than the mean so that an outlier gap, such as one spanning a release the
+ * checker missed, doesn't skew the estimate. Needs at least two releases,
+ * since a single release has no gap to measure.
  */
 export function computeReleaseCadence(
   changeDates: string[],
@@ -22,15 +24,20 @@ export function computeReleaseCadence(
     return null;
   }
 
-  const first = dates[0];
-  const last = dates[dates.length - 1];
-  // The mean of consecutive gaps telescopes to the total span over gap count.
-  const totalDays = first.until(last).days;
-  const averageGapDays = Math.round(totalDays / (dates.length - 1));
+  const gaps = dates.slice(1).map((date, i) => dates[i].until(date).days);
+  const medianGapDays = Math.round(median(gaps));
 
   return {
     releaseCount: dates.length,
-    averageGapDays,
-    nextReleaseEstimate: last.add({ days: averageGapDays }),
+    medianGapDays,
+    nextReleaseEstimate: dates[dates.length - 1].add({ days: medianGapDays }),
   };
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
 }
