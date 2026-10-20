@@ -18,8 +18,6 @@ type VersionChange = {
 
 const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
 
-const CACHE_CONTROL = "public, max-age=60";
-
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
 });
@@ -44,7 +42,7 @@ app.use(
 
 app.use(async (c, next) => {
   await next();
-  c.header("Cache-Control", CACHE_CONTROL);
+  c.header("Cache-Control", "public, max-age=60");
 });
 
 const Layout: FC<{ title: string; children?: unknown }> = ({
