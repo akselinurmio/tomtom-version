@@ -364,8 +364,19 @@ it("CORS preflight is answered for the JSON API", async () => {
   );
 });
 
+it("404 responses send CORS headers and are cached", async () => {
+  const response = await SELF.fetch("https://example.com/nope", {
+    headers: { Origin: "https://app.example.org" },
+  });
+
+  expect(response.status).toBe(404);
+  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+  expect(response.headers.get("ETag")).toBeNull();
+  await response.arrayBuffer();
+});
+
 it.each([
-  ["404", "https://example.com/nope", 404, async () => {}],
   ["503", "https://example.com/v1/current", 503, async () => {}],
   [
     "500",
@@ -374,7 +385,7 @@ it.each([
     () => env.MAP_VERSION_CHANGES.put("last_checked", "not valid json"),
   ],
 ] as const)(
-  "%s JSON error responses send CORS headers and are not cached",
+  "%s responses send CORS headers and are not cached",
   async (_label, url, status, seed) => {
     await seed();
 
@@ -386,6 +397,20 @@ it.each([
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("ETag")).toBeNull();
+    await response.arrayBuffer();
+  },
+);
+
+it.each(["/", "/v1"])(
+  "%s HTML page sends the same Cache-Control as the JSON API",
+  async (path) => {
+    await seedCurrentState("2024", FIXED_NOW_MS);
+
+    const response = await SELF.fetch(`https://example.com${path}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
     await response.arrayBuffer();
   },
 );

@@ -18,7 +18,7 @@ type VersionChange = {
 
 const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
 
-const JSON_CACHE_CONTROL = "public, max-age=300";
+const CACHE_CONTROL = "public, max-age=300";
 
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
@@ -44,9 +44,10 @@ app.use(
 
 app.use(async (c, next) => {
   await next();
-  if (c.res.headers.get("Content-Type")?.startsWith("application/json")) {
-    c.header("Cache-Control", c.res.ok ? JSON_CACHE_CONTROL : "no-store");
-  }
+  c.header(
+    "Cache-Control",
+    c.res.ok || c.res.status === 404 ? CACHE_CONTROL : "no-store",
+  );
 });
 
 const Layout: FC<{ title: string; children?: unknown }> = ({
