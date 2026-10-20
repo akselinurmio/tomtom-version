@@ -40,9 +40,9 @@ app.use(
   }),
 );
 
-app.use(async (c, next) => {
-  await next();
+app.use((c, next) => {
   c.header("Cache-Control", "public, max-age=60");
+  return next();
 });
 
 const Layout: FC<{ title: string; children?: unknown }> = ({
