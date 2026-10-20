@@ -75,7 +75,7 @@ function captureNotificationEmail() {
   return captured;
 }
 
-function captureNotificationEmails() {
+function captureNotificationEmails(times: number) {
   const captured: NotificationEmail[] = [];
   fetchMock
     .get("https://api.resend.com")
@@ -84,7 +84,7 @@ function captureNotificationEmails() {
       captured.push(JSON.parse(request.body as string));
       return { id: "test-id" };
     })
-    .persist();
+    .times(times);
   return captured;
 }
 
@@ -239,7 +239,7 @@ it("scheduled job survives several consecutive days of the page being down", asy
 
 it("scheduled job suppresses repeated error alerts within 24h when checked hourly", async () => {
   await seedCurrentState("2024");
-  const emails = captureNotificationEmails();
+  const emails = captureNotificationEmails(2);
 
   stubMapVersionPageDown();
   await expect(runScheduledCheck()).rejects.toThrow();
@@ -256,4 +256,45 @@ it("scheduled job suppresses repeated error alerts within 24h when checked hourl
   stubMapVersionPageDown();
   await expect(runScheduledCheck()).rejects.toThrow();
   expect(emails).toHaveLength(2);
+});
+
+it("scheduled job alerts on and retries a change whose record failed to save", async () => {
+  await seedCurrentState("2024");
+  stubMapVersionPage("2025");
+  const alert = captureNotificationEmail();
+
+  const putSpy = vi
+    .spyOn(env.MAP_VERSION_CHANGES, "put")
+    .mockImplementationOnce(() => Promise.reject(new Error("KV write failed")));
+
+  await expect(runScheduledCheck()).rejects.toThrow("KV write failed");
+
+  putSpy.mockRestore();
+
+  expect(alert.email!.subject).toBe("Error in TomTom map version check");
+  expect(alert.email!.text).toContain("KV write failed");
+
+  const stateAfterFailure = await env.MAP_VERSION_CHANGES.get<VersionEntry>(
+    "last_checked",
+    { type: "json" },
+  );
+  expect(stateAfterFailure!.version).toBe("2024");
+  expect(await env.MAP_VERSION_CHANGES.get("last_change")).toBeNull();
+
+  vi.setSystemTime(FIXED_NOW_MS + ONE_HOUR_MS);
+  stubMapVersionPage("2025");
+  const captured = captureNotificationEmail();
+
+  await runScheduledCheck();
+
+  expect(captured.email!.subject).toBe("New TomTom map version available");
+  expect(captured.email!.text).toContain("2024");
+  expect(captured.email!.text).toContain("2025");
+
+  const state = await env.MAP_VERSION_CHANGES.get<VersionEntry>(
+    "last_checked",
+    { type: "json" },
+  );
+  expect(state!.version).toBe("2025");
+  expect(await env.MAP_VERSION_CHANGES.get("last_change")).not.toBeNull();
 });

@@ -185,7 +185,33 @@ export default {
 
     const checkedAt = Temporal.Now.instant().epochMilliseconds;
 
+    let change: VersionChange | null = null;
+
+    if (!previousVersion) {
+      console.log(
+        `First time checking map version, latest version is ${latestVersion}`,
+      );
+    } else if (previousVersion === latestVersion) {
+      console.log(
+        `Latest map version is the same as in previous check (${latestVersion})`,
+      );
+    } else {
+      change = {
+        created_at: checkedAt,
+        from_version: previousVersion,
+        to_version: latestVersion,
+      };
+    }
+
     try {
+      if (change) {
+        const key = getTodayDate();
+        await env.MAP_VERSION_CHANGES.put(key, JSON.stringify(change), {
+          metadata: change,
+        });
+        await env.MAP_VERSION_CHANGES.put("last_change", key);
+      }
+
       await env.MAP_VERSION_CHANGES.put(
         "last_checked",
         JSON.stringify({
@@ -199,32 +225,9 @@ export default {
       throw e;
     }
 
-    if (!previousVersion) {
-      console.log(
-        `First time checking map version, latest version is ${latestVersion}`,
-      );
-    } else if (previousVersion === latestVersion) {
-      console.log(
-        `Latest map version is the same as in previous check (${latestVersion})`,
-      );
-    } else {
-      const message = `Map version changed from ${previousVersion} to ${latestVersion}`;
-
+    if (change) {
+      const message = `Map version changed from ${change.from_version} to ${change.to_version}`;
       console.log(message);
-
-      const key = getTodayDate();
-      const change: VersionChange = {
-        created_at: checkedAt,
-        from_version: previousVersion,
-        to_version: latestVersion,
-      };
-
-      await env.MAP_VERSION_CHANGES.put(key, JSON.stringify(change), {
-        metadata: change,
-      });
-
-      await env.MAP_VERSION_CHANGES.put("last_change", key);
-
       await sendEmail("New TomTom map version available", message, env);
     }
   },
