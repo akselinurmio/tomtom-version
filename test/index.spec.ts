@@ -258,9 +258,10 @@ it("scheduled job suppresses repeated error alerts within 24h when checked hourl
   expect(emails).toHaveLength(2);
 });
 
-it("scheduled job retries a change whose record failed to save", async () => {
+it("scheduled job alerts on and retries a change whose record failed to save", async () => {
   await seedCurrentState("2024");
   stubMapVersionPage("2025");
+  const alert = captureNotificationEmail();
 
   const putSpy = vi
     .spyOn(env.MAP_VERSION_CHANGES, "put")
@@ -269,6 +270,9 @@ it("scheduled job retries a change whose record failed to save", async () => {
   await expect(runScheduledCheck()).rejects.toThrow("KV write failed");
 
   putSpy.mockRestore();
+
+  expect(alert.email!.subject).toBe("Error in TomTom map version check");
+  expect(alert.email!.text).toContain("KV write failed");
 
   const stateAfterFailure = await env.MAP_VERSION_CHANGES.get<VersionEntry>(
     "last_checked",
