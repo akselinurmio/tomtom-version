@@ -309,7 +309,7 @@ it("/v1/current sends CORS, Cache-Control and ETag headers", async () => {
   expect(response.status).toBe(200);
   expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
   expect(response.headers.get("Access-Control-Expose-Headers")).toBe("ETag");
-  expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+  expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
   expect(response.headers.get("ETag")).toMatch(/^"[0-9a-f]+"$/);
 });
 
@@ -326,7 +326,7 @@ it("/v1/history returns 304 with CORS headers when the ETag matches", async () =
   expect(response.status).toBe(304);
   expect(await response.text()).toBe("");
   expect(response.headers.get("ETag")).toBe(etag);
-  expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+  expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
   expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
   expect(response.headers.get("Access-Control-Expose-Headers")).toBe("ETag");
 });
@@ -364,19 +364,8 @@ it("CORS preflight is answered for the JSON API", async () => {
   );
 });
 
-it("404 responses send CORS headers and are cached", async () => {
-  const response = await SELF.fetch("https://example.com/nope", {
-    headers: { Origin: "https://app.example.org" },
-  });
-
-  expect(response.status).toBe(404);
-  expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
-  expect(response.headers.get("ETag")).toBeNull();
-  await response.arrayBuffer();
-});
-
 it.each([
+  ["404", "https://example.com/nope", 404, async () => {}],
   ["503", "https://example.com/v1/current", 503, async () => {}],
   [
     "500",
@@ -385,7 +374,7 @@ it.each([
     () => env.MAP_VERSION_CHANGES.put("last_checked", "not valid json"),
   ],
 ] as const)(
-  "%s responses send CORS headers and are not cached",
+  "%s responses send CORS headers and are cached for one minute",
   async (_label, url, status, seed) => {
     await seed();
 
@@ -395,7 +384,7 @@ it.each([
 
     expect(response.status).toBe(status);
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
     expect(response.headers.get("ETag")).toBeNull();
     await response.arrayBuffer();
   },
@@ -410,7 +399,7 @@ it.each(["/", "/v1"])(
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/html");
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60");
     await response.arrayBuffer();
   },
 );
