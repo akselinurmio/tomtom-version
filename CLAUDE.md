@@ -19,10 +19,11 @@ Live: https://tomtom-version.akseli.workers.dev/
 
 1. Reads the previous version from the `last_checked` state key
 2. Scrapes the TomTom help page (URL from `WEB_PAGE_URL` env var) with a regex to extract the four-digit map version
-3. Updates `last_checked` with the fetched version and timestamp
-4. If the version differs from the previous one: records the change and updates the `last_change` pointer, then sends an email notification via Resend
+3. If the version differs from the previous one: records the change and updates the `last_change` pointer
+4. Updates `last_checked` with the fetched version and timestamp
+5. If the version changed, sends an email notification via Resend
 
-Because `last_checked` always holds the last _successfully_ fetched version, a fetch outage of any length cannot hide a change — when the page recovers the new version is compared against it directly.
+Because `last_checked` always holds the last _successfully_ fetched version, a fetch outage of any length cannot hide a change — when the page recovers the new version is compared against it directly. Likewise, `last_checked` is written only after the change record, so if recording the change fails the next run detects it again rather than losing it.
 
 Fetch/save errors trigger an alert email via `reportError`, throttled to at most one per 24h (tracked via `last_error_alert`) so a sustained outage doesn't send an email every hour.
 

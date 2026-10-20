@@ -185,6 +185,38 @@ export default {
 
     const checkedAt = Temporal.Now.instant().epochMilliseconds;
 
+    // The change record is written before last_checked so that if any write
+    // fails, last_checked still holds the previous version and the next run
+    // detects (and records) the change again instead of losing it.
+    let changeMessage: string | null = null;
+
+    if (!previousVersion) {
+      console.log(
+        `First time checking map version, latest version is ${latestVersion}`,
+      );
+    } else if (previousVersion === latestVersion) {
+      console.log(
+        `Latest map version is the same as in previous check (${latestVersion})`,
+      );
+    } else {
+      changeMessage = `Map version changed from ${previousVersion} to ${latestVersion}`;
+
+      console.log(changeMessage);
+
+      const key = getTodayDate();
+      const change: VersionChange = {
+        created_at: checkedAt,
+        from_version: previousVersion,
+        to_version: latestVersion,
+      };
+
+      await env.MAP_VERSION_CHANGES.put(key, JSON.stringify(change), {
+        metadata: change,
+      });
+
+      await env.MAP_VERSION_CHANGES.put("last_change", key);
+    }
+
     try {
       await env.MAP_VERSION_CHANGES.put(
         "last_checked",
@@ -199,33 +231,8 @@ export default {
       throw e;
     }
 
-    if (!previousVersion) {
-      console.log(
-        `First time checking map version, latest version is ${latestVersion}`,
-      );
-    } else if (previousVersion === latestVersion) {
-      console.log(
-        `Latest map version is the same as in previous check (${latestVersion})`,
-      );
-    } else {
-      const message = `Map version changed from ${previousVersion} to ${latestVersion}`;
-
-      console.log(message);
-
-      const key = getTodayDate();
-      const change: VersionChange = {
-        created_at: checkedAt,
-        from_version: previousVersion,
-        to_version: latestVersion,
-      };
-
-      await env.MAP_VERSION_CHANGES.put(key, JSON.stringify(change), {
-        metadata: change,
-      });
-
-      await env.MAP_VERSION_CHANGES.put("last_change", key);
-
-      await sendEmail("New TomTom map version available", message, env);
+    if (changeMessage) {
+      await sendEmail("New TomTom map version available", changeMessage, env);
     }
   },
 };
