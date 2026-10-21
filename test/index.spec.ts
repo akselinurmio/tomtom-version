@@ -117,6 +117,9 @@ it("index page returns 200 with TomTom map version from KV", async () => {
   const text = await response.text();
   expect(text).toContain("TomTom map version");
   expect(text).toContain("2024");
+  expect(text).toContain(
+    '<link rel="alternate" type="application/atom+xml" title="TomTom map version releases" href="/feed.xml"/>',
+  );
 });
 
 it("/v1/current returns ISO timestamp in last_checked", async () => {
@@ -439,4 +442,40 @@ it("index page omits release cadence with fewer than two releases", async () => 
 
   expect(text).not.toContain("typically every");
   expect(text).not.toContain("expected around");
+});
+
+it("/feed.xml lists version changes as an Atom feed, newest first", async () => {
+  await seedChange("2025-10-01", "2023", "2024");
+  await seedChange("2025-11-01", "2024", "2025");
+
+  const response = await SELF.fetch("https://example.com/feed.xml");
+  const text = await response.text();
+
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toBe(
+    "application/atom+xml; charset=UTF-8",
+  );
+  expect(text).toMatch(/^<\?xml version="1.0" encoding="utf-8"\?>/);
+  expect(text).toContain(
+    '<link rel="self" href="https://example.com/feed.xml" />',
+  );
+  expect(text).toContain("<updated>2025-11-01T00:00:00Z</updated>");
+  expect(text.indexOf("version 2025 released")).toBeLessThan(
+    text.indexOf("version 2024 released"),
+  );
+  expect(text).toContain(
+    "<id>tag:tomtom-version.akseli.workers.dev,2026-10-21:2025-10-01</id>",
+  );
+});
+
+it("/feed.xml answers a conditional request with 304", async () => {
+  await seedChange("2025-11-01", "2024", "2025");
+
+  const first = await SELF.fetch("https://example.com/feed.xml");
+  await first.arrayBuffer();
+  const response = await SELF.fetch("https://example.com/feed.xml", {
+    headers: { "If-None-Match": first.headers.get("ETag")! },
+  });
+
+  expect(response.status).toBe(304);
 });
