@@ -14,6 +14,7 @@ Live: https://tomtom-version.akseli.workers.dev/
 - `GET /v1` — API docs
 - `GET /v1/current` — JSON: current version + last checked date
 - `GET /v1/history` — JSON: full version change history
+- `GET /feed.xml` — Atom feed of the change log, newest first, one entry per change. Entry ids are permanent `tag:` URIs built from the change date key (don't change `FEED_ID_PREFIX`, or readers will see every entry as new); `updated` is midnight UTC of that date. Supports conditional requests via Hono's `etag` middleware. HTML pages link to it with `<link rel="alternate">` for autodiscovery.
 
 All responses allow cross-origin `GET`/`HEAD` (`Access-Control-Allow-Origin: *`). Every response, HTML or JSON and including errors, sends `Cache-Control: public, max-age=60`.
 

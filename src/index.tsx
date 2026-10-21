@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { FC } from "hono/jsx";
 import { html } from "hono/html";
 import { cors } from "hono/cors";
+import { etag } from "hono/etag";
 import { Temporal } from "@js-temporal/polyfill";
 import { computeReleaseCadence, type ReleaseCadence } from "./cadence";
 
@@ -17,6 +18,8 @@ type VersionChange = {
 };
 
 const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
+const FEED_TITLE = "TomTom map version releases";
+const FEED_ID_PREFIX = "tag:tomtom-version.akseli.workers.dev,2026-10-21:";
 
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
@@ -45,6 +48,12 @@ const Layout: FC<{ title: string; children?: unknown }> = ({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width" />
         <title>{title}</title>
+        <link
+          rel="alternate"
+          type="application/atom+xml"
+          title={FEED_TITLE}
+          href="/feed.xml"
+        />
         {children}
       </html>
     </>
@@ -86,6 +95,9 @@ const HomePage: FC<{
       <nav>
         <p>
           <a href="/v1">JSON API</a>
+        </p>
+        <p>
+          <a href="/feed.xml">Atom feed</a>
         </p>
       </nav>
     </Layout>
@@ -190,6 +202,39 @@ app.get("/v1/history", async (c) => {
       to_version: entry.metadata?.to_version || null,
     })),
   });
+});
+
+app.get("/feed.xml", etag(), async (c) => {
+  const changes = await c.env.MAP_VERSION_CHANGES.list<VersionChange>({
+    prefix: "2",
+  });
+  const homeUrl = new URL("/", c.req.url).href;
+  const feedUrl = new URL("/feed.xml", c.req.url).href;
+  const toUpdated = (date = "1970-01-01") => `${date}T00:00:00Z`;
+  const entries = changes.keys.toReversed().map(
+    (entry) =>
+      html`<entry>
+        <title>TomTom map version ${entry.metadata?.to_version} released</title>
+        <id>${FEED_ID_PREFIX}${entry.name}</id>
+        <link href="${homeUrl}" />
+        <updated>${toUpdated(entry.name)}</updated>
+      </entry>`,
+  );
+
+  return c.html(
+    html`<?xml version="1.0" encoding="utf-8"?>
+      <feed xmlns="http://www.w3.org/2005/Atom">
+        <title>${FEED_TITLE}</title>
+        <id>${FEED_ID_PREFIX}feed</id>
+        <link rel="self" href="${feedUrl}" />
+        <link href="${homeUrl}" />
+        <updated>${toUpdated(changes.keys.at(-1)?.name)}</updated>
+        <author><name>TomTom map version checker</name></author>
+        ${entries}
+      </feed>`,
+    200,
+    { "Content-Type": "application/atom+xml; charset=UTF-8" },
+  );
 });
 
 app.notFound((c) => {

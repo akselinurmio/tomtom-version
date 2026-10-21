@@ -9,6 +9,7 @@ Cloudflare Worker that:
 - Fetches the latest TomTom map version from their help page
 - Stores version data in KV storage
 - Sends email notifications when map version changes
+- Publishes the version change log as an Atom feed at [`/feed.xml`](https://tomtom-version.akseli.workers.dev/feed.xml)
 - Runs hourly via cron trigger
 
 ## Deployment
