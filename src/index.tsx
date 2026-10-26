@@ -20,6 +20,11 @@ type VersionChange = {
 const ERROR_ALERT_THROTTLE_MS = 24 * 60 * 60 * 1000;
 const FEED_TITLE = "TomTom map version releases";
 const FEED_ID_PREFIX = "tag:tomtom-version.akseli.workers.dev,2026-10-21:";
+// Just enough for a browser to show the raw feed as one title per line.
+const FEED_CSS = `* { display: block; }
+id, link, author { display: none; }
+entry { margin-top: 1em; }
+`;
 
 const app = new Hono<{ Bindings: Env }>({
   strict: true,
@@ -223,6 +228,7 @@ app.get("/feed.xml", etag(), async (c) => {
 
   return c.html(
     html`<?xml version="1.0" encoding="utf-8"?>
+      <?xml-stylesheet type="text/css" href="/feed.css"?>
       <feed xmlns="http://www.w3.org/2005/Atom">
         <title>${FEED_TITLE}</title>
         <id>${FEED_ID_PREFIX}feed</id>
@@ -235,6 +241,10 @@ app.get("/feed.xml", etag(), async (c) => {
     200,
     { "Content-Type": "application/atom+xml; charset=UTF-8" },
   );
+});
+
+app.get("/feed.css", (c) => {
+  return c.body(FEED_CSS, 200, { "Content-Type": "text/css; charset=UTF-8" });
 });
 
 app.notFound((c) => {
