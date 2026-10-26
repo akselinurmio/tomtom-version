@@ -22,7 +22,7 @@ const FEED_TITLE = "TomTom map version releases";
 const FEED_ID_PREFIX = "tag:tomtom-version.akseli.workers.dev,2026-10-21:";
 // Just enough for a browser to show the raw feed as one title per line.
 const FEED_CSS = `* { display: block; }
-id, link, author { display: none; }
+id, link, author, meta { display: none; }
 entry { margin-top: 1em; }
 `;
 
@@ -230,6 +230,11 @@ app.get("/feed.xml", etag(), async (c) => {
     html`<?xml version="1.0" encoding="utf-8"?>
       <?xml-stylesheet type="text/css" href="/feed.css"?>
       <feed xmlns="http://www.w3.org/2005/Atom">
+        <meta
+          xmlns="http://www.w3.org/1999/xhtml"
+          name="viewport"
+          content="width=device-width, initial-scale=1"
+        />
         <title>${FEED_TITLE}</title>
         <id>${FEED_ID_PREFIX}feed</id>
         <link rel="self" href="${feedUrl}" />

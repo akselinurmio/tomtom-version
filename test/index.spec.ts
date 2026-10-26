@@ -486,6 +486,8 @@ it("/feed.xml lists version changes as an Atom feed, newest first", async () => 
   );
   expect(text).toMatch(/^<\?xml version="1.0" encoding="utf-8"\?>/);
   expect(text).toContain('<?xml-stylesheet type="text/css" href="/feed.css"?>');
+  expect(text).toContain('xmlns="http://www.w3.org/1999/xhtml"');
+  expect(text).toContain('name="viewport"');
   expect(text).toContain(
     '<link rel="self" href="https://example.com/feed.xml" />',
   );
