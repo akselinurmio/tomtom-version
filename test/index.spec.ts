@@ -7,7 +7,17 @@ import {
   SELF,
   waitOnExecutionContext,
 } from "cloudflare:test";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { setupNetwork } from "@msw/cloudflare";
+import { http, HttpResponse, RequestHandler } from "msw";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { computeReleaseCadence } from "../src/cadence.js";
 import worker from "../src/index.js";
 
@@ -30,50 +40,27 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const CRON_SCHEDULE = "0 * * * *";
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
-type Interceptor = {
-  method: string;
-  url: (url: URL) => boolean;
-  reply: (request: Request) => Promise<Response>;
-  remaining: number;
-};
+const network = setupNetwork();
+// Outbound requests without a matching handler fail the test
+network.configure({ onUnhandledFrame: "error" });
 
-let interceptors: Interceptor[];
+beforeAll(() => network.enable());
+afterAll(() => network.disable());
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(FIXED_NOW_MS);
-  interceptors = [];
-  // Outbound requests must match an interceptor; anything else fails the test
-  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-    const request = new Request(input, init);
-    const url = new URL(request.url);
-    const interceptor = interceptors.find(
-      (i) => i.remaining > 0 && i.method === request.method && i.url(url),
-    );
-    if (!interceptor) {
-      throw new Error(`Unexpected request: ${request.method} ${request.url}`);
-    }
-    interceptor.remaining--;
-    return interceptor.reply(request);
-  });
 });
 
 afterEach(async () => {
-  vi.restoreAllMocks();
+  const unused = network
+    .listHandlers()
+    .filter((handler) => handler instanceof RequestHandler && !handler.isUsed);
+  network.resetHandlers();
   vi.useRealTimers();
   await reset();
-  const pending = interceptors.filter((i) => i.remaining > 0);
-  expect(pending, "pending interceptors").toHaveLength(0);
+  expect(unused, "unused request handlers").toHaveLength(0);
 });
-
-function intercept(
-  method: string,
-  url: Interceptor["url"],
-  reply: Interceptor["reply"],
-  times = 1,
-) {
-  interceptors.push({ method, url, reply, remaining: times });
-}
 
 function seedCurrentState(version: string, checkedAt = 0) {
   return env.MAP_VERSION_CHANGES.put(
@@ -82,51 +69,51 @@ function seedCurrentState(version: string, checkedAt = 0) {
   );
 }
 
-function isMapVersionPage(url: URL) {
-  return (
-    url.origin === "https://help.tomtom.com" && url.pathname.startsWith("/hc/")
-  );
-}
-
-function isResendEmails(url: URL) {
-  return url.origin === "https://api.resend.com" && url.pathname === "/emails";
-}
+const MAP_VERSION_PAGE = "https://help.tomtom.com/hc/*";
+const RESEND_EMAILS = "https://api.resend.com/emails";
 
 function stubMapVersionPage(version: string) {
-  intercept(
-    "GET",
-    isMapVersionPage,
-    async () => new Response(`The latest map version is ${version}`),
+  network.use(
+    http.get(
+      MAP_VERSION_PAGE,
+      () => HttpResponse.text(`The latest map version is ${version}`),
+      { once: true },
+    ),
   );
 }
 
 function stubMapVersionPageDown() {
-  intercept(
-    "GET",
-    isMapVersionPage,
-    async () => new Response("The page is temporarily unavailable"),
+  network.use(
+    http.get(
+      MAP_VERSION_PAGE,
+      () => HttpResponse.text("The page is temporarily unavailable"),
+      { once: true },
+    ),
   );
 }
 
 function captureNotificationEmail() {
   const captured: { email: NotificationEmail | null } = { email: null };
-  intercept("POST", isResendEmails, async (request) => {
-    captured.email = await request.json();
-    return Response.json({ id: "test-id" });
-  });
+  network.use(
+    http.post<never, NotificationEmail>(
+      RESEND_EMAILS,
+      async ({ request }) => {
+        captured.email = await request.json();
+        return HttpResponse.json({ id: "test-id" });
+      },
+      { once: true },
+    ),
+  );
   return captured;
 }
 
-function captureNotificationEmails(times: number) {
+function captureNotificationEmails() {
   const captured: NotificationEmail[] = [];
-  intercept(
-    "POST",
-    isResendEmails,
-    async (request) => {
+  network.use(
+    http.post<never, NotificationEmail>(RESEND_EMAILS, async ({ request }) => {
       captured.push(await request.json());
-      return Response.json({ id: "test-id" });
-    },
-    times,
+      return HttpResponse.json({ id: "test-id" });
+    }),
   );
   return captured;
 }
@@ -296,7 +283,7 @@ it("scheduled job survives several consecutive days of the page being down", asy
 
 it("scheduled job suppresses repeated error alerts within 24h when checked hourly", async () => {
   await seedCurrentState("2024");
-  const emails = captureNotificationEmails(2);
+  const emails = captureNotificationEmails();
 
   stubMapVersionPageDown();
   await expect(runScheduledCheck()).rejects.toThrow();
