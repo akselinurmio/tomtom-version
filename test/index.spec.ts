@@ -485,6 +485,7 @@ it("/feed.xml lists version changes as an Atom feed, newest first", async () => 
     "application/atom+xml; charset=UTF-8",
   );
   expect(text).toMatch(/^<\?xml version="1.0" encoding="utf-8"\?>/);
+  expect(text).toContain('<?xml-stylesheet type="text/css" href="/feed.css"?>');
   expect(text).toContain(
     '<link rel="self" href="https://example.com/feed.xml" />',
   );
@@ -495,6 +496,15 @@ it("/feed.xml lists version changes as an Atom feed, newest first", async () => 
   expect(text).toContain(
     "<id>tag:tomtom-version.akseli.workers.dev,2026-10-21:2025-10-01</id>",
   );
+});
+
+it("/feed.css serves the feed stylesheet", async () => {
+  const response = await SELF.fetch("https://example.com/feed.css");
+  const text = await response.text();
+
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toBe("text/css; charset=UTF-8");
+  expect(text).toContain("display: block");
 });
 
 it("/feed.xml answers a conditional request with 304", async () => {
