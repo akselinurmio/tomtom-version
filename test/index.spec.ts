@@ -3,7 +3,7 @@ import {
   createExecutionContext,
   createScheduledController,
   env,
-  fetchMock,
+  reset,
   SELF,
   waitOnExecutionContext,
 } from "cloudflare:test";
@@ -30,18 +30,50 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const CRON_SCHEDULE = "0 * * * *";
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
+type Interceptor = {
+  method: string;
+  url: (url: URL) => boolean;
+  reply: (request: Request) => Promise<Response>;
+  remaining: number;
+};
+
+let interceptors: Interceptor[];
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(FIXED_NOW_MS);
-  fetchMock.activate();
-  fetchMock.disableNetConnect();
+  interceptors = [];
+  // Outbound requests must match an interceptor; anything else fails the test
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    const interceptor = interceptors.find(
+      (i) => i.remaining > 0 && i.method === request.method && i.url(url),
+    );
+    if (!interceptor) {
+      throw new Error(`Unexpected request: ${request.method} ${request.url}`);
+    }
+    interceptor.remaining--;
+    return interceptor.reply(request);
+  });
 });
 
-afterEach(() => {
-  fetchMock.assertNoPendingInterceptors();
-  fetchMock.deactivate();
+afterEach(async () => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
+  await reset();
+  const pending = interceptors.filter((i) => i.remaining > 0);
+  expect(pending, "pending interceptors").toHaveLength(0);
 });
+
+function intercept(
+  method: string,
+  url: Interceptor["url"],
+  reply: Interceptor["reply"],
+  times = 1,
+) {
+  interceptors.push({ method, url, reply, remaining: times });
+}
 
 function seedCurrentState(version: string, checkedAt = 0) {
   return env.MAP_VERSION_CHANGES.put(
@@ -50,42 +82,52 @@ function seedCurrentState(version: string, checkedAt = 0) {
   );
 }
 
+function isMapVersionPage(url: URL) {
+  return (
+    url.origin === "https://help.tomtom.com" && url.pathname.startsWith("/hc/")
+  );
+}
+
+function isResendEmails(url: URL) {
+  return url.origin === "https://api.resend.com" && url.pathname === "/emails";
+}
+
 function stubMapVersionPage(version: string) {
-  fetchMock
-    .get("https://help.tomtom.com")
-    .intercept({ path: (path) => path.startsWith("/hc/") })
-    .reply(200, `The latest map version is ${version}`);
+  intercept(
+    "GET",
+    isMapVersionPage,
+    async () => new Response(`The latest map version is ${version}`),
+  );
 }
 
 function stubMapVersionPageDown() {
-  fetchMock
-    .get("https://help.tomtom.com")
-    .intercept({ path: (path) => path.startsWith("/hc/") })
-    .reply(200, "The page is temporarily unavailable");
+  intercept(
+    "GET",
+    isMapVersionPage,
+    async () => new Response("The page is temporarily unavailable"),
+  );
 }
 
 function captureNotificationEmail() {
   const captured: { email: NotificationEmail | null } = { email: null };
-  fetchMock
-    .get("https://api.resend.com")
-    .intercept({ path: "/emails", method: "POST" })
-    .reply(200, (request) => {
-      captured.email = JSON.parse(request.body as string);
-      return { id: "test-id" };
-    });
+  intercept("POST", isResendEmails, async (request) => {
+    captured.email = await request.json();
+    return Response.json({ id: "test-id" });
+  });
   return captured;
 }
 
 function captureNotificationEmails(times: number) {
   const captured: NotificationEmail[] = [];
-  fetchMock
-    .get("https://api.resend.com")
-    .intercept({ path: "/emails", method: "POST" })
-    .reply(200, (request) => {
-      captured.push(JSON.parse(request.body as string));
-      return { id: "test-id" };
-    })
-    .times(times);
+  intercept(
+    "POST",
+    isResendEmails,
+    async (request) => {
+      captured.push(await request.json());
+      return Response.json({ id: "test-id" });
+    },
+    times,
+  );
   return captured;
 }
 
