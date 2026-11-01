@@ -19,7 +19,7 @@
     "hono": "4.13.11"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "1.4.7",
+    "@cloudflare/vitest-plugin": "1.4.10",
     "@msw/cloudflare": "0.2.0",
     "msw": "3.0.3",
     "prettier": "3.9.6",
