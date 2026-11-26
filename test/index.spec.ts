@@ -151,6 +151,36 @@ it("index page returns 200 with TomTom map version from KV", async () => {
   );
 });
 
+it("index page counts a release late yesterday as 1 day ago, not today", async () => {
+  const releasedAt = Temporal.Instant.from("2026-01-14T20:00:00Z");
+  vi.setSystemTime(releasedAt.epochMilliseconds);
+  await seedCurrentState("2024");
+  stubMapVersionPage("2025");
+  captureNotificationEmail();
+  await runScheduledCheck();
+
+  vi.setSystemTime(releasedAt.add({ hours: 12 }).epochMilliseconds);
+  const text = await (await SELF.fetch("https://example.com/")).text();
+
+  expect(text).toContain("Version 2025 was released");
+  expect(text).toContain("1 day ago");
+  expect(text).not.toContain(">today<");
+});
+
+it("index page says a release from earlier today was released today", async () => {
+  const releasedAt = Temporal.Instant.from("2026-01-15T01:00:00Z");
+  vi.setSystemTime(releasedAt.epochMilliseconds);
+  await seedCurrentState("2024");
+  stubMapVersionPage("2025");
+  captureNotificationEmail();
+  await runScheduledCheck();
+
+  vi.setSystemTime(releasedAt.add({ hours: 22 }).epochMilliseconds);
+  const text = await (await SELF.fetch("https://example.com/")).text();
+
+  expect(text).toContain(">today<");
+});
+
 it("/v1/current returns ISO timestamp in last_checked", async () => {
   const testCheckedAt = FIXED_NOW_MS;
   await seedCurrentState("2024", testCheckedAt);

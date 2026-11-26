@@ -460,16 +460,21 @@ function formatRelativeTime(
   const temporalDate =
     Temporal.Instant.from(temporalString).toZonedDateTimeISO("UTC");
   const now = Temporal.Now.zonedDateTimeISO("UTC");
-  const duration = now.since(temporalDate, { smallestUnit });
-  const roundedDuration = duration.round({
-    largestUnit: "years",
-    smallestUnit,
-    relativeTo: temporalDate,
-  });
 
-  if (roundedDuration.sign === 0) {
+  const duration =
+    smallestUnit === "days"
+      ? now
+          .toPlainDate()
+          .since(temporalDate.toPlainDate(), { largestUnit: "years" })
+      : now.since(temporalDate, { smallestUnit }).round({
+          largestUnit: "years",
+          smallestUnit,
+          relativeTo: temporalDate,
+        });
+
+  if (duration.sign === 0) {
     return smallestUnit === "days" ? "today" : "just now";
   }
 
-  return `${roundedDuration.toLocaleString("en", { style: "long" })} ago`;
+  return `${duration.toLocaleString("en", { style: "long" })} ago`;
 }
