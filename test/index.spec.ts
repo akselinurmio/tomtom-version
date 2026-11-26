@@ -152,8 +152,6 @@ it("index page returns 200 with TomTom map version from KV", async () => {
 });
 
 it("index page counts a release late yesterday as 1 day ago, not today", async () => {
-  // Detected at 20:00 UTC, viewed at 08:00 UTC the next day: only 12 hours
-  // have passed, but the release happened on the previous calendar day.
   const releasedAt = Temporal.Instant.from("2026-01-14T20:00:00Z");
   vi.setSystemTime(releasedAt.epochMilliseconds);
   await seedCurrentState("2024");

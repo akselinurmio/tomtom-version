@@ -461,8 +461,6 @@ function formatRelativeTime(
     Temporal.Instant.from(temporalString).toZonedDateTimeISO("UTC");
   const now = Temporal.Now.zonedDateTimeISO("UTC");
 
-  // For days, compare calendar dates rather than elapsed time: something that
-  // happened late yesterday is less than 24 hours old but still "1 day ago".
   const duration =
     smallestUnit === "days"
       ? now
